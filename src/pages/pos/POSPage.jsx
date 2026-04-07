@@ -27,8 +27,8 @@ function CategoryTabs({ active, setActive, categories }) {
 function ProductGrid({ products, onAdd }) {
   const items = useCartStore(s => s.items)
   return (
-    <div className="grid gap-1.5 p-2 overflow-y-auto"
-      style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(100px,1fr))' }}>
+    <div className="grid gap-2 p-2 overflow-y-auto"
+      style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))' }}>
       {products.map(p => {
         const inCart  = items.find(i => i.id === p.id)
         const isOOS   = p.stock !== null && p.stock <= 0
@@ -36,11 +36,11 @@ function ProductGrid({ products, onAdd }) {
           <button key={p.id} onClick={() => !isOOS && onAdd(p)} disabled={isOOS}
             className={`pos-prod-btn relative ${inCart ? 'in-cart' : ''} ${isOOS ? 'opacity-40 cursor-not-allowed' : ''}`}>
             {p.image_url
-              ? <img src={p.image_url} alt="" className="w-10 h-10 object-cover rounded-md mb-1" loading="lazy" />
-              : <span className="text-2xl mb-1">{p.emoji || '📦'}</span>
+              ? <img src={p.image_url} alt="" className="w-16 h-16 object-cover rounded-md mb-1.5" loading="lazy" />
+              : <span className="text-4xl mb-1.5">{p.emoji || '📦'}</span>
             }
-            <span className="text-[10px] font-bold text-gray-800 leading-tight line-clamp-2">{p.name}</span>
-            <span className="text-xs font-black text-primary mt-0.5">{fmt(p.sell_price)}</span>
+            <span className="text-xs font-bold text-gray-800 leading-tight line-clamp-2">{p.name}</span>
+            <span className="text-sm font-black text-primary mt-1">{fmt(p.sell_price)}</span>
             {inCart && (
               <span className="absolute top-1 left-1 bg-primary text-white text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center">
                 {inCart.qty}

@@ -12,7 +12,7 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
   return (
     <div className={`bg-white rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg border-2 ${inBag ? 'border-primary shadow-md' : 'border-gray-100 shadow-sm'}`}>
       {/* Image area */}
-      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 180 }}>
+      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 200 }}>
         {p.image_url && !imgError
           ? <img src={p.image_url} alt={p.name} className="w-full h-full object-contain p-2" loading="lazy" onError={() => setImgError(true)} />
           : <span className="text-5xl">{p.emoji || '📦'}</span>
