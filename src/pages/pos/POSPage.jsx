@@ -27,7 +27,7 @@ function CategoryTabs({ active, setActive, categories }) {
 function ProductGrid({ products, onAdd }) {
   const items = useCartStore(s => s.items)
   return (
-    <div className="grid gap-2 p-2 overflow-y-auto"
+    <div className="grid gap-2 p-2 overflow-y-auto h-full content-start"
       style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))' }}>
       {products.map(p => {
         const inCart  = items.find(i => i.id === p.id)
@@ -323,7 +323,7 @@ export default function POSPage() {
         <CategoryTabs active={activeCat} setActive={setActiveCat} categories={categories} />
 
         {/* Products */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden h-full">
           <ProductGrid products={products} onAdd={cart.returnMode ? cart.returnItem : addItem} />
         </div>
       </div>
