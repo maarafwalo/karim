@@ -12,7 +12,7 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
   return (
     <div className={`bg-white rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg border-2 ${inBag ? 'border-primary shadow-md' : 'border-gray-100 shadow-sm'}`}>
       {/* Image area */}
-      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 140 }}>
+      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 180 }}>
         {p.image_url && !imgError
           ? <img src={p.image_url} alt={p.name} className="w-full h-full object-contain p-2" loading="lazy" onError={() => setImgError(true)} />
           : <span className="text-5xl">{p.emoji || '📦'}</span>
@@ -25,14 +25,14 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
       </div>
 
       {/* Info area */}
-      <div className="flex flex-col flex-1 p-2 gap-1">
-        <p className="text-xs font-bold text-gray-800 leading-snug flex-1"
-          style={{ display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden', minHeight:'2.5rem' }}>
+      <div className="flex flex-col flex-1 p-3 gap-1">
+        <p className="text-sm font-bold text-gray-800 leading-snug flex-1"
+          style={{ display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden', minHeight:'2.8rem' }}>
           {p.name}
         </p>
-        {p.size && <p className="text-[10px] text-slate-400">{p.size}</p>}
+        {p.size && <p className="text-xs text-slate-400">{p.size}</p>}
         <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-gray-100">
-          <span className="text-sm font-black text-red-600">{fmt(p.sell_price)} <span className="text-[10px] text-slate-400 font-normal">{cur}</span></span>
+          <span className="text-base font-black text-red-600">{fmt(p.sell_price)} <span className="text-xs text-slate-400 font-normal">{cur}</span></span>
           {inBag ? (
             <div className="flex items-center gap-0.5">
               <button onClick={onDec} className="w-6 h-6 bg-gray-100 rounded-md text-base font-black hover:bg-gray-200 flex items-center justify-center leading-none">−</button>
