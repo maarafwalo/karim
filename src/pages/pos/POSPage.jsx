@@ -323,7 +323,7 @@ export default function POSPage() {
         <CategoryTabs active={activeCat} setActive={setActiveCat} categories={categories} />
 
         {/* Products */}
-        <div className="flex-1 overflow-hidden h-full">
+        <div className="flex-1 overflow-hidden min-h-0">
           <ProductGrid products={products} onAdd={cart.returnMode ? cart.returnItem : addItem} />
         </div>
       </div>
