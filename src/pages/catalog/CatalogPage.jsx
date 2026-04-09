@@ -78,6 +78,50 @@ export default function CatalogPage() {
   const bagTotal = bag.reduce((s, b) => s + b.product.sell_price * b.qty, 0)
   const bagCount = bag.reduce((s, b) => s + b.qty, 0)
 
+  const isPartner = profile?.role === 'trusted_partner'
+
+  // ── Partner: submit take-request directly (no WhatsApp) ──
+  const submitPartnerRequest = async () => {
+    setSending(true)
+    const orderNum = generateOrderNumber('TKR') // TaKe Request
+    try {
+      const { data: order, error } = await supabase.from('catalog_orders').insert({
+        order_number:        orderNum,
+        vendor_id:           profile?.id || null,
+        customer_name:       profile?.full_name || 'شريك',
+        customer_phone:      profile?.phone || '',
+        subtotal:            bagTotal,
+        total:               bagTotal,
+        status:              'partner_request',
+        wa_sent:             false,
+        is_partner_request:  true,
+        stock_approved:      false,
+      }).select().single()
+
+      if (!error && order) {
+        await supabase.from('catalog_order_items').insert(
+          bag.map(b => ({
+            order_id:     order.id,
+            product_id:   b.product.id,
+            product_name: b.product.name,
+            unit_price:   b.product.sell_price,
+            quantity:     b.qty,
+            total:        b.product.sell_price * b.qty,
+          }))
+        )
+        toast.success('✅ تم تقديم طلبك — بانتظار تأكيد عمران', { duration: 5000 })
+      } else {
+        toast.error('فشل تقديم الطلب')
+      }
+    } catch (e) {
+      toast.error('خطأ: ' + e.message)
+    }
+    setSending(false)
+    setShowBag(false)
+    setBag([])
+  }
+
+  // ── Vendor: regular order via WhatsApp ──
   const sendOrder = async () => {
     if (!customer.name || !customer.phone) { toast.error('أدخل الاسم والهاتف'); return }
     setSending(true)
@@ -94,6 +138,7 @@ export default function CatalogPage() {
         total:             bagTotal,
         status:            'new',
         wa_sent:           true,
+        is_partner_request: false,
       }).select().single()
 
       if (order) {
@@ -161,7 +206,7 @@ export default function CatalogPage() {
             <span className="text-sm">لا توجد منتجات</span>
           </div>
         ) : (
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
             {products.map(p => {
               const inBag = bag.find(b => b.product.id === p.id)
               return (
@@ -183,8 +228,10 @@ export default function CatalogPage() {
       {/* Floating bag button */}
       {bagCount > 0 && (
         <button onClick={() => setShowBag(true)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-primary text-white font-black px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 z-30">
-          🛍️ {bagCount} منتج — {fmt(bagTotal)} {cur}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 font-black px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 z-30 text-white ${
+            isPartner ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary hover:bg-primary-dark'
+          }`}>
+          {isPartner ? '🤝' : '🛍️'} {bagCount} منتج — {fmt(bagTotal)} {cur}
         </button>
       )}
 
@@ -212,12 +259,28 @@ export default function CatalogPage() {
             </div>
             <div className="p-4 border-t bg-gray-50">
               <div className="flex justify-between font-black text-lg mb-3">
-                <span>الإجمالي</span><span className="text-primary">{fmt(bagTotal)} {cur}</span>
+                <span>الإجمالي</span>
+                <span className={isPartner ? 'text-amber-600' : 'text-primary'}>{fmt(bagTotal)} {cur}</span>
               </div>
-              <button onClick={() => { setShowBag(false); setShowOrder(true) }}
-                className="w-full bg-green-500 text-white font-black py-3 rounded-xl text-base hover:bg-green-600 transition-colors">
-                📱 إرسال الطلب عبر واتساب
-              </button>
+              {isPartner ? (
+                <button
+                  onClick={submitPartnerRequest}
+                  disabled={sending}
+                  className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black py-3 rounded-xl text-base transition-colors"
+                >
+                  {sending ? '⏳ جارٍ الإرسال...' : '🤝 تقديم طلب أخذ بضاعة'}
+                </button>
+              ) : (
+                <button onClick={() => { setShowBag(false); setShowOrder(true) }}
+                  className="w-full bg-green-500 text-white font-black py-3 rounded-xl text-base hover:bg-green-600 transition-colors">
+                  📱 إرسال الطلب عبر واتساب
+                </button>
+              )}
+              {isPartner && (
+                <p className="text-xs text-amber-600 text-center mt-2 font-bold">
+                  سيُرسَل الطلب لعمران للتأكيد قبل إخراج البضاعة
+                </p>
+              )}
             </div>
           </div>
         </div>

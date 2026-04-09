@@ -28,15 +28,23 @@ export function buildWhatsApp(phone, message) {
 }
 
 export const ROLE_LABELS = {
-  admin:         '👑 مدير',
-  cashier:       '🛒 كاشير',
-  stock_manager: '📦 مخزن',
-  vendor:        '📋 مندوب',
+  admin:            '👑 مدير',
+  cashier:          '🛒 كاشير',
+  stock_manager:    '📦 مخزن',
+  vendor:           '📋 مندوب',
+  store_manager:    '🏪 مسؤول فرع',
+  delivery:         '🚚 موصل',
+  assistant:        '👷 مساعد',
+  trusted_partner:  '🤝 شريك موثوق',
 }
 
 export const ROLE_HOME = {
-  admin:         '/pos',
-  cashier:       '/pos',
-  stock_manager: '/stock',
-  vendor:        '/catalog',
+  admin:            '/pos',
+  cashier:          '/pos',
+  stock_manager:    '/stock',
+  vendor:           '/catalog',
+  store_manager:    '/pos',
+  delivery:         '/customers',
+  assistant:        '/stock',
+  trusted_partner:  '/catalog',
 }

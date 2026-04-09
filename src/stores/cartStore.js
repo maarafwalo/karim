@@ -12,9 +12,15 @@ export const useCartStore = create(
       notes:          '',
       customer:       null,      // { id, name, phone, address }
       returnMode:     false,
+      heldCarts:      [],        // parked invoices: [{ id, heldAt, items, customer, notes, discountType, discountValue }]
 
       addItem: (product) => set(state => {
         if (state.returnMode) return state  // block add during return mode
+        // Apply price tier: wholesale customers get wholesale_price if set
+        const price = (state.customer?.price_tier === 'wholesale' && product.wholesale_price > 0)
+          ? product.wholesale_price
+          : product.sell_price
+        const productWithPrice = { ...product, sell_price: price }
         const existing = state.items.find(i => i.id === product.id)
         const maxQty   = product.stock ?? Infinity
         if (existing) {
@@ -24,7 +30,7 @@ export const useCartStore = create(
           )}
         }
         if (maxQty <= 0) return state
-        return { items: [...state.items, { ...product, qty: 1, isReturn: false }] }
+        return { items: [...state.items, { ...productWithPrice, qty: 1, isReturn: false }] }
       }),
 
       removeOne: (id) => set(state => ({
@@ -38,6 +44,9 @@ export const useCartStore = create(
         items: qty <= 0
           ? state.items.filter(i => i.id !== id)
           : state.items.map(i => i.id === id ? { ...i, qty } : i)
+      })),
+      setPrice:      (id, price) => set(state => ({
+        items: state.items.map(i => i.id === id ? { ...i, sell_price: price } : i)
       })),
       setDiscount:   (type, val)    => set({ discountType: type, discountValue: val }),
       setAmountPaid: (v)            => set({ amountPaid: v }),
@@ -55,6 +64,60 @@ export const useCartStore = create(
         }
         return { items: [...state.items, { ...product, qty: 1, isReturn: true }] }
       }),
+
+      holdCart: () => set(state => {
+        if (!state.items.length) return state
+        const held = {
+          id:            Date.now(),
+          heldAt:        new Date().toISOString(),
+          items:         state.items,
+          customer:      state.customer,
+          notes:         state.notes,
+          discountType:  state.discountType,
+          discountValue: state.discountValue,
+          paymentMethod: state.paymentMethod,
+        }
+        return {
+          heldCarts:    [...state.heldCarts, held],
+          items: [], discountValue: 0, amountPaid: 0,
+          notes: '', customer: null, returnMode: false,
+          paymentMethod: 'cash', discountType: 'fixed',
+        }
+      }),
+
+      resumeCart: (id) => set(state => {
+        const held = state.heldCarts.find(h => h.id === id)
+        if (!held) return state
+        // If current cart has items, push it to held before restoring
+        const newHeld = state.heldCarts.filter(h => h.id !== id)
+        if (state.items.length) {
+          newHeld.push({
+            id:            Date.now(),
+            heldAt:        new Date().toISOString(),
+            items:         state.items,
+            customer:      state.customer,
+            notes:         state.notes,
+            discountType:  state.discountType,
+            discountValue: state.discountValue,
+            paymentMethod: state.paymentMethod,
+          })
+        }
+        return {
+          heldCarts:    newHeld,
+          items:        held.items,
+          customer:     held.customer,
+          notes:        held.notes,
+          discountType: held.discountType,
+          discountValue:held.discountValue,
+          paymentMethod:held.paymentMethod,
+          amountPaid: 0,
+          returnMode: false,
+        }
+      }),
+
+      deleteHeldCart: (id) => set(state => ({
+        heldCarts: state.heldCarts.filter(h => h.id !== id),
+      })),
 
       clear: () => set({
         items: [], discountValue: 0, amountPaid: 0,
@@ -79,6 +142,6 @@ export const useCartStore = create(
         return { subtotal, discount, returnTotal, tva, tvaRate, total, change, amountPaid }
       },
     }),
-    { name: 'joud_cart', partialize: (s) => ({ items: s.items, customer: s.customer }) }
+    { name: 'joud_cart', partialize: (s) => ({ items: s.items, customer: s.customer, heldCarts: s.heldCarts }) }
   )
 )

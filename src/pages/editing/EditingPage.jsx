@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
+import { useStoreContext } from '../../stores/storeContext.js'
 import { fmt, calcMargin } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
 // ── Product Form Modal ───────────────────────────────────────
-function ProductModal({ product, categories, onSave, onClose }) {
+function ProductModal({ product, categories, stores, onSave, onClose }) {
   const [form, setForm] = useState(product || {
     name:'', cat:'', size:'', sell_price:'', cost_price:'',
     barcode:'', emoji:'📦', image_url:'', stock:'', is_active: true, is_hidden: false,
+    store_id: null,
   })
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -29,6 +31,7 @@ function ProductModal({ product, categories, onSave, onClose }) {
       cat:         form.cat,
       is_active:   form.is_active,
       is_hidden:   form.is_hidden,
+      store_id:    form.store_id || null,
     })
     onClose()
   }
@@ -79,6 +82,16 @@ function ProductModal({ product, categories, onSave, onClose }) {
               </label>
             </div>
           </div>
+          {/* Store assignment */}
+          {stores.length > 0 && (
+            <div>
+              <label className="label">الفرع</label>
+              <select value={form.store_id || ''} onChange={e=>set('store_id', e.target.value || null)} className="inp">
+                <option value="">🏠 المتجر الرئيسي</option>
+                {stores.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+              </select>
+            </div>
+          )}
           {form.image_url && <img src={form.image_url} alt="" className="w-20 h-20 object-cover rounded-xl border" />}
           <button type="submit" className="w-full bg-primary hover:bg-primary-dark text-white font-black py-3 rounded-xl transition-colors">
             {product ? '💾 حفظ التعديل' : '➕ إضافة المنتج'}
@@ -93,18 +106,27 @@ function ProductModal({ product, categories, onSave, onClose }) {
 export default function EditingPage() {
   const { products, categories, createProduct, updateProduct, deleteProduct } = useProductsStore()
   const { settings } = useSettingsStore()
+  const { stores, loadStores } = useStoreContext()
 
-  const [q, setQ]           = useState('')
-  const [catFilter, setCat] = useState('')
-  const [editProd, setEdit] = useState(null)    // null | product | 'new'
-  const [showForm, setShow] = useState(false)
+  const [q, setQ]             = useState('')
+  const [catFilter, setCat]   = useState('')
+  const [storeFilter, setSF]  = useState('main') // 'main' | store.id
+  const [editProd, setEdit]   = useState(null)
+  const [showForm, setShow]   = useState(false)
+
+  useEffect(() => { loadStores() }, [])
 
   const cur = settings?.currency || 'درهم'
 
   const filtered = products.filter(p => {
     const qm = !q || p.name.toLowerCase().includes(q.toLowerCase()) || (p.barcode||'').includes(q) || (p.categories?.name||p.cat||'').includes(q)
     const cm = !catFilter || (p.categories?.name||p.cat) === catFilter
-    return qm && cm
+    const sm = storeFilter === 'all'
+      ? true
+      : storeFilter === 'main'
+        ? !p.store_id
+        : p.store_id === storeFilter
+    return qm && cm && sm
   })
 
   const handleSave = async (data) => {
@@ -123,15 +145,25 @@ export default function EditingPage() {
     if (error) toast.error('فشل الحذف'); else toast.success('✔ تم الحذف')
   }
 
+  // Default store_id for new product modal
+  const defaultStoreId = storeFilter === 'main' || storeFilter === 'all' ? null : storeFilter
+
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
       {/* Toolbar */}
       <div className="flex gap-2 p-3 bg-white border-b border-gray-100 flex-shrink-0 flex-wrap">
         <input value={q} onChange={e=>setQ(e.target.value)} className="inp flex-1 min-w-32" placeholder="🔍 بحث بالاسم أو الباركود..." />
-        <select value={catFilter} onChange={e=>setCat(e.target.value)} className="inp" style={{width:150}}>
+        <select value={catFilter} onChange={e=>setCat(e.target.value)} className="inp" style={{width:130}}>
           <option value="">— كل الأقسام —</option>
           {categories.filter(c=>c.name!=='الكل').map(c=><option key={c.name} value={c.name}>{c.emoji} {c.name}</option>)}
         </select>
+        {stores.length > 0 && (
+          <select value={storeFilter} onChange={e=>setSF(e.target.value)} className="inp" style={{width:130}}>
+            <option value="all">🏬 كل الفروع</option>
+            <option value="main">🏠 الرئيسي</option>
+            {stores.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+          </select>
+        )}
         <button onClick={() => { setEdit('new'); setShow(true) }}
           className="bg-primary text-white font-bold px-4 py-2 rounded-xl text-sm whitespace-nowrap hover:bg-primary-dark transition-colors">
           ➕ منتج جديد
@@ -146,6 +178,7 @@ export default function EditingPage() {
             <tr className="border-b border-gray-200">
               <th className="text-right p-2 font-bold text-muted">المنتج</th>
               <th className="text-center p-2 font-bold text-muted w-24">القسم</th>
+              {stores.length > 0 && <th className="text-center p-2 font-bold text-muted w-20">الفرع</th>}
               <th className="text-center p-2 font-bold text-muted w-20">البيع</th>
               <th className="text-center p-2 font-bold text-muted w-20">التكلفة</th>
               <th className="text-center p-2 font-bold text-muted w-16">الهامش</th>
@@ -157,6 +190,8 @@ export default function EditingPage() {
           <tbody>
             {filtered.map(p => {
               const margin = calcMargin(p.sell_price, p.cost_price)
+              const storeName = p.store_id ? (stores.find(s=>s.id===p.store_id)?.name || '—') : 'رئيسي'
+              const storeIcon = p.store_id ? (stores.find(s=>s.id===p.store_id)?.icon || '') : '🏠'
               return (
                 <tr key={p.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${!p.is_active?'opacity-40':''} ${p.is_hidden?'bg-gray-100':''}`}>
                   <td className="p-2">
@@ -172,6 +207,7 @@ export default function EditingPage() {
                     </div>
                   </td>
                   <td className="p-2 text-center text-muted">{p.categories?.name || p.cat}</td>
+                  {stores.length > 0 && <td className="p-2 text-center text-muted text-[11px]">{storeIcon} {storeName}</td>}
                   <td className="p-2 text-center font-black text-primary">{fmt(p.sell_price)}</td>
                   <td className="p-2 text-center text-purple-600 font-bold">{p.cost_price ? fmt(p.cost_price) : '—'}</td>
                   <td className="p-2 text-center">
@@ -202,8 +238,9 @@ export default function EditingPage() {
       {/* Product modal */}
       {showForm && (
         <ProductModal
-          product={editProd === 'new' ? null : editProd}
+          product={editProd === 'new' ? (defaultStoreId ? { store_id: defaultStoreId } : null) : editProd}
           categories={categories}
+          stores={stores}
           onSave={handleSave}
           onClose={() => { setShow(false); setEdit(null) }}
         />

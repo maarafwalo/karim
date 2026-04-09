@@ -54,10 +54,16 @@ export const useProductsStore = create((set, get) => ({
   setActiveCat: (cat) => set({ activeCat: cat }),
   setSearchQ:   (q)   => set({ searchQ: q }),
 
-  filteredProducts: () => {
+  // storeId: null = main store (store_id IS NULL), uuid = sub-store
+  filteredProducts: (storeId = null) => {
     const { products, activeCat, searchQ } = get()
     return products.filter(p => {
       if (p.is_hidden) return false
+      // Store filter
+      const storeMatch = storeId
+        ? p.store_id === storeId
+        : !p.store_id
+      if (!storeMatch) return false
       const catMatch = activeCat === 'الكل' || p.categories?.name === activeCat || p.cat === activeCat
       const q = searchQ.toLowerCase().trim()
       const qMatch = !q || p.name.toLowerCase().includes(q) || (p.barcode || '').includes(q) || (p.cat || '').includes(q) || (p.categories?.name || '').includes(q)

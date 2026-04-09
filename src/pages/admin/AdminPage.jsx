@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore.js'
 import { useProductsStore } from '../../stores/productsStore.js'
+import { useStoreContext } from '../../stores/storeContext.js'
+import { usePermissionsStore, PAGES } from '../../stores/permissionsStore.js'
 import { supabase } from '../../lib/supabase.js'
 import { fmt, fmtDate, ROLE_LABELS } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
@@ -58,17 +60,61 @@ function UsersTab() {
   const createUser = async (e) => {
     e.preventDefault()
     setLoad(true)
-    // Use Supabase Admin to create user — requires Edge Function or service key setup
-    const { error } = await supabase.auth.admin?.createUser?.({
-      email: form.email, password: form.password,
-      user_metadata: { full_name: form.full_name, role: form.role }
-    }) || { error: null }
-    if (error) { toast.error('فشل إنشاء المستخدم — تأكد من ضبط service key'); }
-    else { toast.success('✔ تم إنشاء المستخدم'); setShow(false); loadUsers() }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email:    form.email,
+        password: form.password,
+        options:  { data: { full_name: form.full_name, role: form.role } },
+      })
+
+      if (error) throw error
+
+      // user: null + no error = email already registered (Supabase hides this for security)
+      if (!data?.user?.id) {
+        toast.error('هذا البريد الإلكتروني مستخدم بالفعل')
+        setLoad(false)
+        return
+      }
+
+      const userId = data.user.id
+
+      // Save profile
+      await supabase.from('profiles').upsert({
+        id:        userId,
+        full_name: form.full_name,
+        role:      form.role,
+        phone:     form.phone || null,
+        email:     form.email,
+      }, { onConflict: 'id' })
+
+      // Check if email confirmation is needed
+      const needsConfirm = !data.session
+      if (needsConfirm) {
+        toast.success('✔ تم إنشاء الحساب — يحتاج تأكيد البريد', { duration: 6000 })
+        toast('💡 لتجاوز التأكيد: Supabase → Auth → Settings → عطّل Email Confirmations', { duration: 8000, icon: '⚙️' })
+      } else {
+        toast.success('✔ تم إنشاء المستخدم')
+      }
+
+      setForm({ email:'', password:'', full_name:'', role:'vendor', phone:'' })
+      setShow(false)
+      loadUsers()
+    } catch (err) {
+      toast.error(err.message || 'فشل إنشاء المستخدم')
+    }
     setLoad(false)
   }
 
-  const ROLE_COLORS = { admin:'bg-purple-100 text-purple-700', cashier:'bg-blue-100 text-blue-700', stock_manager:'bg-orange-100 text-orange-700', vendor:'bg-green-100 text-green-700' }
+  const ROLE_COLORS = {
+    admin:         'bg-purple-100 text-purple-700',
+    cashier:       'bg-blue-100 text-blue-700',
+    stock_manager: 'bg-orange-100 text-orange-700',
+    vendor:        'bg-green-100 text-green-700',
+    store_manager:   'bg-teal-100 text-teal-700',
+    delivery:        'bg-cyan-100 text-cyan-700',
+    assistant:       'bg-gray-100 text-gray-600',
+    trusted_partner: 'bg-amber-100 text-amber-700',
+  }
 
   return (
     <div className="p-4">
@@ -90,7 +136,11 @@ function UsersTab() {
               <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="inp">
                 <option value="cashier">🛒 كاشير</option>
                 <option value="vendor">📋 مندوب</option>
-                <option value="stock_manager">📦 مخزن</option>
+                <option value="stock_manager">📦 مسؤول مخزن</option>
+                <option value="store_manager">🏪 مسؤول فرع</option>
+                <option value="delivery">🚚 موصل</option>
+                <option value="assistant">👷 مساعد</option>
+                <option value="trusted_partner">🤝 شريك موثوق</option>
                 <option value="admin">👑 مدير</option>
               </select>
             </div>
@@ -121,6 +171,137 @@ function UsersTab() {
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Stores Tab ───────────────────────────────────────────────
+const STORE_COLORS = ['#1a56db','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777','#65a30d']
+const STORE_ICONS  = ['🏬','🏪','🛒','🛍️','🍎','🧴','🥩','🥐','🧀','🍫','🧹','💊']
+
+function StoresTab() {
+  const { stores, loadStores, addStore, updateStore, deleteStore } = useStoreContext()
+  const [form, setForm] = useState({ name:'', address:'', color:'#1a56db', icon:'🏬' })
+  const [showForm, setShowForm] = useState(false)
+  const [editId, setEditId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { loadStores() }, [])
+
+  const save = async () => {
+    if (!form.name.trim()) { toast.error('أدخل اسم الفرع'); return }
+    setSaving(true)
+    const payload = { name: form.name.trim(), address: form.address, color: form.color, icon: form.icon }
+    const { error } = editId ? await updateStore(editId, payload) : await addStore(payload)
+    setSaving(false)
+    if (error) { toast.error('فشل الحفظ: ' + error.message); return }
+    toast.success(editId ? 'تم تحديث الفرع' : 'تم إضافة الفرع')
+    setForm({ name:'', address:'', color:'#1a56db', icon:'🏬' })
+    setShowForm(false); setEditId(null)
+  }
+
+  const del = async (id) => {
+    if (!confirm('حذف هذا الفرع؟')) return
+    const { error } = await deleteStore(id)
+    if (error) { toast.error('فشل الحذف: ' + error.message); return }
+    toast.success('تم الحذف')
+  }
+
+  const startEdit = (s) => {
+    setForm({ name: s.name, address: s.address||'', color: s.color||'#1a56db', icon: s.icon||'🏬' })
+    setEditId(s.id); setShowForm(true)
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-black text-lg">🏬 الفروع / نقاط البيع</h2>
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ name:'', address:'', color:'#1a56db', icon:'🏬' }) }}
+          className="bg-primary text-white font-bold px-4 py-2 rounded-xl text-sm">+ فرع جديد</button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-gray-50 rounded-2xl p-4 mb-4 border border-gray-200 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label">اسم الفرع *</label>
+              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} className="inp" placeholder="مثال: فرع الحي الجديد" />
+            </div>
+            <div className="col-span-2">
+              <label className="label">العنوان</label>
+              <input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} className="inp" placeholder="اختياري" />
+            </div>
+          </div>
+          {/* Icon picker */}
+          <div>
+            <label className="label">الأيقونة</label>
+            <div className="flex gap-2 flex-wrap">
+              {STORE_ICONS.map(ic => (
+                <button key={ic} onClick={() => setForm(f=>({...f,icon:ic}))}
+                  className={`text-xl p-1.5 rounded-lg border-2 ${form.icon===ic ? 'border-primary bg-primary/10' : 'border-gray-200'}`}>{ic}</button>
+              ))}
+            </div>
+          </div>
+          {/* Color picker */}
+          <div>
+            <label className="label">اللون</label>
+            <div className="flex gap-2">
+              {STORE_COLORS.map(c => (
+                <button key={c} onClick={() => setForm(f=>({...f,color:c}))}
+                  className={`w-8 h-8 rounded-full border-4 ${form.color===c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+                  style={{ backgroundColor: c }} />
+              ))}
+            </div>
+          </div>
+          {/* Preview */}
+          <div className="flex items-center gap-2 p-2 bg-white rounded-xl border">
+            <span className="text-2xl" style={{ color: form.color }}>{form.icon}</span>
+            <span className="font-black" style={{ color: form.color }}>{form.name || 'معاينة'}</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={save} disabled={saving} className="flex-1 bg-primary text-white font-black py-2 rounded-xl disabled:opacity-60">{saving ? '...' : editId ? 'تحديث' : 'حفظ'}</button>
+            <button onClick={() => { setShowForm(false); setEditId(null) }} className="flex-1 bg-gray-200 text-gray-700 font-black py-2 rounded-xl">إلغاء</button>
+          </div>
+        </div>
+      )}
+
+      {/* Main store card */}
+      <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-xl border border-primary/20 mb-2">
+        <span className="text-2xl">🏪</span>
+        <div>
+          <p className="font-black text-primary">المحل الرئيسي</p>
+          <p className="text-xs text-muted">المنتجات الافتراضية (بدون فرع)</p>
+        </div>
+        <span className="mr-auto text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">رئيسي</span>
+      </div>
+
+      {/* Sub stores */}
+      {stores.map(s => (
+        <div key={s.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-200 mb-2">
+          <span className="text-2xl" style={{ color: s.color }}>{s.icon || '🏬'}</span>
+          <div>
+            <p className="font-black">{s.name}</p>
+            {s.address && <p className="text-xs text-muted">{s.address}</p>}
+          </div>
+          <div className="mr-auto flex gap-2">
+            <button onClick={() => startEdit(s)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-bold">تعديل</button>
+            <button onClick={() => del(s.id)} className="text-xs bg-danger/10 text-danger hover:bg-danger/20 px-3 py-1.5 rounded-lg font-bold">حذف</button>
+          </div>
+        </div>
+      ))}
+      {stores.length === 0 && !showForm && (
+        <p className="text-center text-muted py-8 text-sm">لا توجد فروع — أضف فرعاً للبدء</p>
+      )}
+
+      <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+        <p className="font-bold mb-1">💡 كيف يعمل نظام الفروع:</p>
+        <ul className="space-y-1 list-disc list-inside">
+          <li>كل فرع له منتجاته الخاصة وأسعاره ومخزونه</li>
+          <li>لإضافة منتجات لفرع: اذهب إلى صفحة المنتجات واختر الفرع</li>
+          <li>في POS اضغط على زر الفرع للتبديل بين المحلات</li>
+        </ul>
       </div>
     </div>
   )
@@ -194,13 +375,104 @@ function StatsTab() {
   )
 }
 
+// ── Permissions Tab ───────────────────────────────────────────
+const ROLES = [
+  { key: 'cashier',       label: 'كاشير',       icon: '🛒', color: 'bg-blue-500' },
+  { key: 'stock_manager', label: 'مخزن',        icon: '📦', color: 'bg-orange-500' },
+  { key: 'vendor',        label: 'مندوب',       icon: '📋', color: 'bg-green-500' },
+  { key: 'store_manager', label: 'مسؤول فرع',   icon: '🏪', color: 'bg-teal-500' },
+  { key: 'delivery',      label: 'موصل',        icon: '🚚', color: 'bg-cyan-500' },
+  { key: 'assistant',       label: 'مساعد',        icon: '👷', color: 'bg-gray-500' },
+  { key: 'trusted_partner', label: 'شريك موثوق',  icon: '🤝', color: 'bg-amber-500' },
+]
+
+function PermissionsTab() {
+  const { permissions, toggle, resetRole } = usePermissionsStore()
+  const [selectedRole, setSelectedRole] = useState('cashier')
+  const role = ROLES.find(r => r.key === selectedRole)
+
+  return (
+    <div className="p-4 overflow-auto" dir="rtl">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-black text-lg">🔐 صلاحيات الوصول</h2>
+        <p className="text-xs text-muted">المدير لديه صلاحية كاملة دائماً</p>
+      </div>
+
+      {/* Role selector tabs */}
+      <div className="flex gap-1.5 mb-4 flex-wrap">
+        {ROLES.map(r => (
+          <button
+            key={r.key}
+            onClick={() => setSelectedRole(r.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              selectedRole === r.key
+                ? `${r.color} text-white shadow`
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <span>{r.icon}</span><span>{r.label}</span>
+          </button>
+        ))}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-bold">
+          <span>👑</span><span>مدير — كل الصلاحيات</span>
+        </div>
+      </div>
+
+      {/* Permissions for selected role */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-4">
+        <div className={`px-4 py-3 ${role.color} bg-opacity-10 border-b flex items-center gap-2`}
+          style={{ backgroundColor: role.color.replace('bg-','') + '15' }}>
+          <span className="text-lg">{role.icon}</span>
+          <p className="font-black text-gray-800">{role.label}</p>
+          <p className="text-xs text-gray-500 mr-1">— اختر الصفحات المسموح بها</p>
+        </div>
+        {PAGES.map((page) => {
+          const on = permissions[selectedRole]?.[page.key] ?? false
+          return (
+            <div key={page.key}
+              className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+              <span className="text-base">{page.icon}</span>
+              <span className="flex-1 text-sm font-bold text-gray-800">{page.label}</span>
+              <button
+                onClick={() => toggle(selectedRole, page.key)}
+                className={`w-11 h-6 rounded-full transition-all relative flex-shrink-0 ${on ? 'bg-primary' : 'bg-gray-200'}`}
+                title={on ? 'انقر للإلغاء' : 'انقر للسماح'}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${on ? 'left-5' : 'left-0.5'}`} />
+              </button>
+              <span className={`text-xs font-bold w-10 text-left ${on ? 'text-primary' : 'text-gray-400'}`}>
+                {on ? 'مسموح' : 'مقفل'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Reset button */}
+      <button
+        onClick={() => { resetRole(selectedRole); toast.success('تم إعادة ضبط ' + role.label) }}
+        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold px-4 py-2 rounded-xl transition-colors"
+      >
+        🔄 إعادة ضبط {role.icon} {role.label} للإعدادات الافتراضية
+      </button>
+
+      <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+        <p className="font-bold mb-1">💡 ملاحظة</p>
+        <p>التغييرات تطبق فوراً — الموظف لن يرى الصفحات المقفلة في قائمة التنقل</p>
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN ADMIN PAGE ───────────────────────────────────────────
 export default function AdminPage() {
   const [tab, setTab] = useState('settings')
   const TABS = [
-    { id:'settings', label:'⚙️ الإعدادات' },
-    { id:'users',    label:'👥 المستخدمون' },
-    { id:'stats',    label:'📊 الإحصائيات' },
+    { id:'settings',     label:'⚙️ الإعدادات' },
+    { id:'users',        label:'👥 المستخدمون' },
+    { id:'permissions',  label:'🔐 الصلاحيات' },
+    { id:'stores',       label:'🏬 الفروع' },
+    { id:'stats',        label:'📊 الإحصائيات' },
   ]
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
@@ -214,9 +486,11 @@ export default function AdminPage() {
         ))}
       </div>
       <div className="flex-1 overflow-y-auto">
-        {tab === 'settings' && <SettingsTab />}
-        {tab === 'users'    && <UsersTab />}
-        {tab === 'stats'    && <StatsTab />}
+        {tab === 'settings'    && <SettingsTab />}
+        {tab === 'users'       && <UsersTab />}
+        {tab === 'permissions' && <PermissionsTab />}
+        {tab === 'stores'      && <StoresTab />}
+        {tab === 'stats'       && <StatsTab />}
       </div>
     </div>
   )

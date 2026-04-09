@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(vercel --version)",
+      "Bash(vercel deploy:*)",
+      "Bash(npx vite:*)",
+      "WebFetch(domain:tatimyttuxxyeyxztawn.supabase.co)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/stores?select=id&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/__TRACKED_VAR__?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(curl -s 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/products?select=store_id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(curl -s 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/pos_invoices?select=store_id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(curl -s 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/expenses?select=*&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/suppliers?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'https://tatimyttuxxyeyxztawn.supabase.co/rest/v1/stock_receivings?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdGlteXR0dXh4eWV5eHp0YXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjQ2MDcsImV4cCI6MjA5MTAwMDYwN30.o04exxcvbb7dnAXQ6XONKIwtft5VnVGAQ5Tx75j3o1g')",
+      "Bash(npx supabase:*)",
+      "Bash(dir \"C:\\\\Users\\\\marou\\\\Desktop\\\\joud-app\\\\public\")",
+      "Bash(node gen-icons.cjs)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

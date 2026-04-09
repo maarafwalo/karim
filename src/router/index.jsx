@@ -9,6 +9,16 @@ import CatalogPage        from '../pages/catalog/CatalogPage.jsx'
 import StockPage          from '../pages/stock/StockPage.jsx'
 import EditingPage        from '../pages/editing/EditingPage.jsx'
 import AdminPage          from '../pages/admin/AdminPage.jsx'
+import ReportsPage        from '../pages/reports/ReportsPage.jsx'
+import ExpensesPage       from '../pages/expenses/ExpensesPage.jsx'
+import CustomersPage      from '../pages/customers/CustomersPage.jsx'
+import SuppliersPage      from '../pages/suppliers/SuppliersPage.jsx'
+import DebtPage           from '../pages/debt/DebtPage.jsx'
+import SurveillancePage   from '../pages/surveillance/SurveillancePage.jsx'
+import StoreAccountsPage  from '../pages/store-accounts/StoreAccountsPage.jsx'
+import InstallPage        from '../pages/InstallPage.jsx'
+import PartnerAccountPage from '../pages/partner/PartnerAccountPage.jsx'
+import PartnerOrdersPage  from '../pages/partner/PartnerOrdersPage.jsx'
 
 function RequireAuth() {
   const { user, loading } = useAuthStore()
@@ -38,6 +48,7 @@ function RoleRedirect() {
 export const router = createBrowserRouter([
   { path: '/login',        element: <LoginPage /> },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
+  { path: '/install',      element: <InstallPage /> },
   {
     element: <RequireAuth />,
     children: [{
@@ -45,23 +56,47 @@ export const router = createBrowserRouter([
       children: [
         { index: true, element: <RoleRedirect /> },
         {
-          element: <RequireRole allowed={['admin', 'cashier']} />,
-          children: [{ path: 'pos', element: <POSPage /> }],
+          element: <RequireRole allowed={['admin', 'cashier', 'store_manager']} />,
+          children: [
+            { path: 'pos',       element: <POSPage /> },
+            { path: 'expenses',  element: <ExpensesPage /> },
+            { path: 'debt',      element: <DebtPage /> },
+          ],
         },
         {
-          element: <RequireRole allowed={['admin', 'vendor']} />,
+          element: <RequireRole allowed={['admin', 'cashier', 'vendor', 'delivery', 'store_manager']} />,
+          children: [{ path: 'customers', element: <CustomersPage /> }],
+        },
+        {
+          element: <RequireRole allowed={['admin', 'vendor', 'trusted_partner']} />,
           children: [{ path: 'catalog', element: <CatalogPage /> }],
+        },
+        {
+          element: <RequireRole allowed={['admin', 'stock_manager', 'assistant', 'store_manager']} />,
+          children: [
+            { path: 'stock',     element: <StockPage /> },
+            { path: 'editing',   element: <EditingPage /> },
+            { path: 'suppliers', element: <SuppliersPage /> },
+          ],
+        },
+        {
+          element: <RequireRole allowed={['admin', 'cashier', 'store_manager']} />,
+          children: [{ path: 'reports', element: <ReportsPage /> }],
         },
         {
           element: <RequireRole allowed={['admin', 'stock_manager']} />,
           children: [
-            { path: 'stock',   element: <StockPage /> },
-            { path: 'editing', element: <EditingPage /> },
+            { path: 'partner-orders', element: <PartnerOrdersPage /> },
           ],
         },
         {
           element: <RequireRole allowed={['admin']} />,
-          children: [{ path: 'admin', element: <AdminPage /> }],
+          children: [
+            { path: 'admin',            element: <AdminPage /> },
+            { path: 'surveillance',     element: <SurveillancePage /> },
+            { path: 'store-accounts',   element: <StoreAccountsPage /> },
+            { path: 'partner-account',  element: <PartnerAccountPage /> },
+          ],
         },
       ],
     }],
