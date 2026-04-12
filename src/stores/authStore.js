@@ -6,20 +6,19 @@ export const useAuthStore = create((set, get) => ({
   profile: null,
   loading: true,
 
-  init: () => {
-    // Safety net: never stay loading > 6s
-    const safetyTimer = setTimeout(() => set({ loading: false }), 6000)
+  init: async () => {
+    // Restore session from localStorage first — works across refreshes
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) await get()._fetchProfile(session.user)
+    set({ loading: false })
 
-    // INITIAL_SESSION fires immediately when onAuthStateChange is registered
-    // — handles both "has session" and "no session" cases without triggering a lock
+    // Then listen for future auth changes (login / logout / token refresh)
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         await get()._fetchProfile(session.user)
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         set({ user: null, profile: null })
       }
-      clearTimeout(safetyTimer)
-      set({ loading: false })
     })
   },
 
