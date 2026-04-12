@@ -16,7 +16,7 @@ export const useProductsStore = create((set, get) => ({
     const { data: cats, error: catErr } = await supabase
       .from('categories').select('*').order('sort_order')
     const { data: prods, error: prodErr } = await supabase
-      .from('products').select('*, categories(name,emoji)').eq('is_active', true).order('name')
+      .from('products').select('*, categories(name,emoji)').order('name')
 
     if (catErr || prodErr || !prods?.length) {
       // Fallback: use local seed data (before Supabase is seeded)
@@ -58,6 +58,7 @@ export const useProductsStore = create((set, get) => ({
   filteredProducts: (storeId = null) => {
     const { products, activeCat, searchQ } = get()
     return products.filter(p => {
+      if (!p.is_active) return false
       if (p.is_hidden) return false
       // Store filter
       const storeMatch = storeId

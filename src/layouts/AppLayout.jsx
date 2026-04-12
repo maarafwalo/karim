@@ -16,7 +16,6 @@ const NAV = [
   { path: '/expenses',        label: 'مصاريف',         icon: '💸', roles: ['admin','cashier','store_manager'] },
   { path: '/debt',            label: 'الديون',         icon: '⚖️', roles: ['admin','cashier','delivery','store_manager'] },
   { path: '/stock',           label: 'مخزن',           icon: '📦', roles: ['admin','stock_manager','assistant','store_manager'] },
-  { path: '/editing',         label: 'منتجات',         icon: '✏️', roles: ['admin','stock_manager'] },
   { path: '/suppliers',       label: 'موردون',         icon: '🚚', roles: ['admin','stock_manager'] },
   { path: '/reports',         label: 'تقارير',         icon: '📊', roles: ['admin','store_manager'] },
   { path: '/store-accounts',   label: 'حسابات الفروع',   icon: '🏦', roles: ['admin'] },
