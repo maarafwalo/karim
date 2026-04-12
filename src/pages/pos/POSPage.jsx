@@ -47,13 +47,14 @@ function CategoryTabs({ active, setActive, categories }) {
 }
 
 // ── Product Grid ─────────────────────────────────────────────
-function ProductGrid({ products, onAdd }) {
+function ProductGrid({ products, onAdd, returnMode }) {
   const items = useCartStore(s => s.items)
   const cartIds = new Set(items.filter(i => !i.isReturn).map(i => i.id))
+  const visible = returnMode ? products : products.filter(p => !cartIds.has(p.id))
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 overflow-y-auto h-full content-start">
-      {products.filter(p => !cartIds.has(p.id)).map(p => {
-        const isOOS = p.stock !== null && p.stock <= 0
+      {visible.map(p => {
+        const isOOS = !returnMode && p.stock !== null && p.stock <= 0
         return (
           <div key={p.id} className={`pos-prod-btn relative ${isOOS ? 'opacity-40' : ''}`}>
             <div onClick={() => !isOOS && onAdd(p)} className={`flex flex-col items-center w-full ${isOOS ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -581,7 +582,7 @@ export default function POSPage() {
 
         {/* Products */}
         <div className="flex-1 overflow-hidden min-h-0">
-          <ProductGrid products={products} onAdd={cart.returnMode ? cart.returnItem : addItem} />
+          <ProductGrid products={products} onAdd={cart.returnMode ? cart.returnItem : addItem} returnMode={cart.returnMode} />
         </div>
       </div>
 
