@@ -31,6 +31,20 @@ body { font-family: 'Cairo', system-ui, sans-serif; direction: rtl; background: 
 }
 .inp:focus { @apply border-primary ring-2 ring-primary/20; }
 
+/* Number inputs: force LTR so digits type left-to-right, show numeric keyboard on mobile */
+input[type="number"],
+input[type="tel"] {
+  direction: ltr;
+  text-align: right;
+}
+input[type="number"].text-center,
+input[type="tel"].text-center { text-align: center; }
+
+/* Remove browser spinner arrows (they break layout in RTL) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
 /* Panel */
 .panel { @apply bg-white rounded-xl shadow-sm border border-gray-100; }
 
