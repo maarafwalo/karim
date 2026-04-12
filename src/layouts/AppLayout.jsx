@@ -119,71 +119,63 @@ export default function AppLayout() {
     const pageKey = n.path.replace('/', '')
     return canAccess(profile?.role, pageKey)
   })
-  const [navOpen, setNavOpen] = useState(true)
-
   const isAdmin = profile?.role === 'admin'
 
   return (
-    <div className="flex flex-row-reverse h-screen overflow-hidden font-arabic" dir="rtl">
-      {/* Hidden canvas for snapshots */}
+    <div className="flex flex-col h-screen overflow-hidden font-arabic" dir="rtl">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* ── VERTICAL SIDEBAR (left side) ── */}
-      <aside className={`flex flex-col bg-[#1a56db] text-white z-40 flex-shrink-0 shadow-xl transition-all duration-200 ${navOpen ? 'w-36' : 'w-14'}`}>
-        {/* Logo / toggle */}
-        <div
-          className="flex items-center gap-2 px-3 h-[54px] cursor-pointer select-none flex-shrink-0 border-b border-white/10"
-          onClick={() => setNavOpen(o => !o)}
-        >
-          <span className="text-xl flex-shrink-0">🏪</span>
-          {navOpen && <span className="font-black text-base tracking-tight truncate">{settings?.store_name || 'joud'}</span>}
+      {/* ── HORIZONTAL HEADER ── */}
+      <header className="flex items-center gap-2 px-3 h-[54px] bg-[#1a56db] text-white z-40 flex-shrink-0 shadow-lg">
+        {/* Logo */}
+        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+          <span className="text-xl">🏪</span>
+          <span className="font-black text-base tracking-tight">{settings?.store_name || 'joud'}</span>
         </div>
 
         {/* Nav items */}
-        <nav className="flex flex-col gap-1 p-1.5 flex-1 overflow-y-auto overflow-x-hidden">
+        <nav className="flex gap-1 flex-1 overflow-x-auto">
           {allowedNav.map(n => (
             <button
               key={n.path}
               onClick={() => navigate(n.path)}
-              className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-bold transition-all w-full ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                 location.pathname === n.path
                   ? 'bg-white text-[#1a56db] shadow'
-                  : 'hover:bg-white/20'
+                  : 'bg-white/15 hover:bg-white/25'
               }`}
-              title={n.label}
             >
-              <span className="text-base flex-shrink-0">{n.icon}</span>
-              {navOpen && <span className="truncate text-right">{n.label}</span>}
+              <span>{n.icon}</span><span>{n.label}</span>
             </button>
           ))}
         </nav>
 
-        {/* Bottom actions */}
-        <div className="flex flex-col gap-1 p-1.5 border-t border-white/10 flex-shrink-0">
-          {/* Camera (admin only) */}
-          {isAdmin && (
-            <button
-              onClick={() => navigate('/surveillance')}
-              className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold transition-colors w-full ${
-                active ? 'bg-green-500/20 text-green-300' : 'hover:bg-white/20 text-white/60'
-              }`}
-              title="المراقبة"
-            >
-              {active
-                ? <><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />{navOpen && <span>مراقبة</span>}</>
-                : <><span className="flex-shrink-0">📹</span>{navOpen && <span>متوقف</span>}</>
-              }
-            </button>
-          )}
+        {/* Camera indicator (admin) */}
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/surveillance')}
+            className={`flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              active ? 'bg-green-500/30 text-green-200' : 'bg-white/10 text-white/50 hover:bg-white/20'
+            }`}
+          >
+            {active ? <><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" /><span>مراقبة</span></> : '📹'}
+          </button>
+        )}
+
+        {/* User + sign out */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs opacity-70 hidden sm:block">{ROLE_LABELS[profile?.role]}</span>
+          <button onClick={signOut} className="bg-white/15 hover:bg-white/30 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors">
+            خروج
+          </button>
         </div>
-      </aside>
+      </header>
 
       {/* ── PAGE CONTENT ── */}
       <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
 
-      {/* ── PERSISTENT MINI CAMERA ── */}
       {isAdmin && <MiniCamera onClick={() => navigate('/surveillance')} />}
     </div>
   )
