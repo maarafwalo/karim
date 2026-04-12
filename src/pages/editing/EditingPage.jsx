@@ -28,7 +28,6 @@ function ProductModal({ product, categories, stores, onSave, onClose }) {
       image_url:   form.image_url || null,
       stock:       form.stock !== '' && form.stock !== null ? parseInt(form.stock) : null,
       category_id: cat?.id || null,
-      cat:         form.cat,
       is_active:   form.is_active,
       is_hidden:   form.is_hidden,
       store_id:    form.store_id || null,

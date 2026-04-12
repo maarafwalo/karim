@@ -6,24 +6,42 @@ export const useAuthStore = create((set, get) => ({
   profile: null,
   loading: true,
 
-  init: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) await get()._fetchProfile(session.user)
-    set({ loading: false })
+  init: () => {
+    // Safety net: never stay loading > 6s
+    const safetyTimer = setTimeout(() => set({ loading: false }), 6000)
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) await get()._fetchProfile(session.user)
-      else set({ user: null, profile: null })
+    // INITIAL_SESSION fires immediately when onAuthStateChange is registered
+    // — handles both "has session" and "no session" cases without triggering a lock
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await get()._fetchProfile(session.user)
+      } else {
+        set({ user: null, profile: null })
+      }
+      clearTimeout(safetyTimer)
+      set({ loading: false })
     })
   },
 
   _fetchProfile: async (user) => {
     const { data: profile } = await supabase
       .from('profiles').select('*').eq('id', user.id).single()
-    set({ user, profile })
+    // Always prefer user_metadata.role — it holds the true role set at account
+    // creation and isn't limited by the DB enum (which may be missing new values).
+    const metaRole = user.user_metadata?.role
+    const metaName = user.user_metadata?.full_name
+    const effective = profile
+      ? { ...profile, ...(metaRole && { role: metaRole }), ...(metaName && { full_name: metaName }) }
+      : (metaRole ? { id: user.id, full_name: metaName || '', role: metaRole } : null)
+    set({ user, profile: effective })
   },
 
   signIn: async (email, password) => {
+    // Clear in-memory session + localStorage before signing in.
+    // signOut({ scope:'local' }) clears the SDK's internal state (no HTTP call),
+    // which releases any Web Lock held by a stale token refresh and lets
+    // signInWithPassword acquire the lock immediately.
+    try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return error
   },

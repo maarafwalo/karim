@@ -11,19 +11,19 @@ const APP_URL = 'https://karime.vercel.app'
 // بطاقة الموظف مع بيانات الدخول
 const ACCOUNTS = [
   { name:'أنت (المدير)',   email:'digitalmarouane@gmail.com', role:'admin',           pass:'Admin123456',  icon:'👑' },
-  { name:'أخوك',           email:'akh@joud.app',              role:'admin',           pass:'Joud@1234',    icon:'👑' },
-  { name:'عمران',          email:'imran@joud.app',            role:'stock_manager',   pass:'Joud@1234',    icon:'📦' },
-  { name:'إبراهيم',       email:'ibrahim@joud.app',          role:'assistant',       pass:'Joud@1234',    icon:'👷' },
-  { name:'عبد القادر',    email:'abdelkader@joud.app',       role:'assistant',       pass:'Joud@1234',    icon:'👷' },
-  { name:'البائع',         email:'vendeur@joud.app',          role:'vendor',          pass:'Joud@1234',    icon:'📋' },
-  { name:'أسامة',          email:'ossama@joud.app',           role:'delivery',        pass:'Joud@1234',    icon:'🚚' },
-  { name:'سعيد',           email:'said@joud.app',             role:'trusted_partner', pass:'Joud@1234',    icon:'🤝' },
-  { name:'ميلود',          email:'miloud@joud.app',           role:'store_manager',   pass:'Joud@1234',    icon:'🏪' },
-  { name:'رضوان',          email:'ridwan@joud.app',           role:'store_manager',   pass:'Joud@1234',    icon:'🏪' },
-  { name:'كاشير 1',       email:'cashier1@joud.app',         role:'cashier',         pass:'Joud@1234',    icon:'🛒' },
-  { name:'كاشير 2',       email:'cashier2@joud.app',         role:'cashier',         pass:'Joud@1234',    icon:'🛒' },
-  { name:'مساعد 1',       email:'assistant1@joud.app',       role:'assistant',       pass:'Joud@1234',    icon:'👷' },
-  { name:'مساعد 2',       email:'assistant2@joud.app',       role:'assistant',       pass:'Joud@1234',    icon:'👷' },
+  { name:'أخوك',           email:'akh@joud.app',              role:'admin',           pass:'Akh@Joud24',   icon:'👑' },
+  { name:'عمران',          email:'imran@joud.app',            role:'stock_manager',   pass:'Imran@Joud24', icon:'📦' },
+  { name:'إبراهيم',       email:'ibrahim@joud.app',          role:'assistant',       pass:'Ibr@Joud24',   icon:'👷' },
+  { name:'عبد القادر',    email:'abdelkader@joud.app',       role:'assistant',       pass:'Abd@Joud24',   icon:'👷' },
+  { name:'البائع',         email:'vendeur@joud.app',          role:'vendor',          pass:'Vend@Joud24',  icon:'📋' },
+  { name:'أسامة',          email:'ossama@joud.app',           role:'delivery',        pass:'Oss@Joud24',   icon:'🚚' },
+  { name:'سعيد',           email:'said@joud.app',             role:'trusted_partner', pass:'Said@Joud24',  icon:'🤝' },
+  { name:'ميلود',          email:'miloud@joud.app',           role:'store_manager',   pass:'Mil@Joud24',   icon:'🏪' },
+  { name:'رضوان',          email:'ridwan@joud.app',           role:'store_manager',   pass:'Rid@Joud24',   icon:'🏪' },
+  { name:'كاشير 1',       email:'cashier1@joud.app',         role:'cashier',         pass:'Cash1@Joud24', icon:'🛒' },
+  { name:'كاشير 2',       email:'cashier2@joud.app',         role:'cashier',         pass:'Cash2@Joud24', icon:'🛒' },
+  { name:'مساعد 1',       email:'assistant1@joud.app',       role:'assistant',       pass:'Asst1@Joud24', icon:'👷' },
+  { name:'مساعد 2',       email:'assistant2@joud.app',       role:'assistant',       pass:'Asst2@Joud24', icon:'👷' },
 ]
 
 const ROLE_COLORS = {

@@ -12,7 +12,7 @@ function StockBadge({ stock }) {
 }
 
 export default function StockPage() {
-  const { products, categories, updateStock } = useProductsStore()
+  const { products, categories, updateStock, updateProduct } = useProductsStore()
   const { settings } = useSettingsStore()
   const [q, setQ]           = useState('')
   const [catFilter, setCat] = useState('')
@@ -106,8 +106,17 @@ export default function StockPage() {
                 className="inp text-center font-black" style={{ width: 70 }}
               />
               {saving[p.id] && <span className="text-[10px] text-muted animate-pulse">حفظ...</span>}
-              <button onClick={() => handleStockChange(p.id, 0)}
-                className="text-[10px] text-danger hover:underline">نفد</button>
+              <div className="flex gap-2">
+                <button onClick={() => handleStockChange(p.id, 0)}
+                  className="text-[10px] text-danger hover:underline">نفد</button>
+                <button onClick={async () => {
+                  const { error } = await updateProduct(p.id, { is_hidden: !p.is_hidden })
+                  if (!error) toast.success(p.is_hidden ? '👁 ظهر' : '🙈 مخفي')
+                  else toast.error('فشل')
+                }} className="text-[10px] text-muted hover:underline">
+                  {p.is_hidden ? 'إظهار' : 'إخفاء'}
+                </button>
+              </div>
             </div>
           </div>
         ))}

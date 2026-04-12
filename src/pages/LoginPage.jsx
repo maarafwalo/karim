@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore.js'
 import { ROLE_HOME } from '../lib/utils.js'
@@ -11,15 +11,22 @@ export default function LoginPage() {
   const { signIn, profile }     = useAuthStore()
   const navigate                = useNavigate()
 
+  // Navigate once the profile is loaded after sign-in (avoids race condition)
+  useEffect(() => {
+    if (profile?.role) {
+      navigate(ROLE_HOME[profile.role] || '/pos', { replace: true })
+    }
+  }, [profile])
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     const error = await signIn(email.trim(), password)
-    setLoading(false)
-    if (error) { toast.error('بيانات خاطئة — تحقق من الإيميل وكلمة السر'); return }
-    // profile is set by auth listener; navigate to role home
-    const { profile } = useAuthStore.getState()
-    navigate(ROLE_HOME[profile?.role] || '/catalog', { replace: true })
+    if (error) {
+      setLoading(false)
+      toast.error('بيانات خاطئة — تحقق من الإيميل وكلمة السر')
+    }
+    // on success: loading stays true, useEffect navigates when profile arrives
   }
 
   return (
