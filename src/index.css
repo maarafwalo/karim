@@ -35,7 +35,7 @@ body { font-family: 'Cairo', system-ui, sans-serif; direction: rtl; background: 
 input[type="number"],
 input[type="tel"] {
   direction: ltr;
-  text-align: right;
+  text-align: left;
 }
 input[type="number"].text-center,
 input[type="tel"].text-center { text-align: center; }
