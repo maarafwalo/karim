@@ -118,6 +118,7 @@ function ProductCard({ product }) {
 function BasketPanel({ onClose, onSubmit }) {
   const { items, removeItem, setPrice, setQty, getTotal, clear, submitting } =
     usePartnerOrderStore()
+  const cur = 'ريال مغربي'
   const total = getTotal()
 
   if (!items.length) {
@@ -185,8 +186,8 @@ function BasketPanel({ onClose, onSubmit }) {
                 className="flex-1 text-center text-xs font-black border border-gray-200 rounded-lg py-1 px-1.5 focus:outline-none focus:border-amber-400 bg-white"
                 placeholder="السعر"
               />
-              <span className="text-xs font-black text-amber-600 flex-shrink-0 w-14 text-left">
-                {fmt(Number(agreedPrice) * qty)} د
+              <span className="text-xs font-black text-amber-600 flex-shrink-0 w-20 text-left">
+                {fmt(Number(agreedPrice) * qty)} {cur}
               </span>
             </div>
           </div>
@@ -197,7 +198,7 @@ function BasketPanel({ onClose, onSubmit }) {
       <div className="p-3 border-t border-gray-100 space-y-2 flex-shrink-0 bg-white">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-500 font-bold">{items.length} صنف</span>
-          <span className="font-black text-lg text-amber-600">{fmt(total)} <span className="text-xs font-normal text-gray-400">د</span></span>
+          <span className="font-black text-lg text-amber-600">{fmt(total)} <span className="text-xs font-normal text-gray-400">{cur}</span></span>
         </div>
 
         {!allPriced && (
