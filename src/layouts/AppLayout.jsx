@@ -6,6 +6,7 @@ import { useCameraStore, getGlobalStream } from '../stores/cameraStore.js'
 import { usePermissionsStore } from '../stores/permissionsStore.js'
 import { useEffect, useRef, useState } from 'react'
 import { ROLE_LABELS } from '../lib/utils.js'
+import { supabase } from '../lib/supabase.js'
 
 const HIDE_CATALOG = import.meta.env.VITE_HIDE_CATALOG === 'true'
 
@@ -21,6 +22,7 @@ const NAV = [
   { path: '/store-accounts',   label: 'حسابات الفروع',   icon: '🏦', roles: ['admin'] },
   { path: '/partner-account',  label: 'حساب سعيد',       icon: '🤝', roles: ['admin'] },
   { path: '/partner-orders',   label: 'طلبات الشركاء',   icon: '📋', roles: ['admin','stock_manager'] },
+  { path: '/partner-catalog',  label: 'طلب بضاعة',       icon: '🛒', roles: ['trusted_partner'] },
   { path: '/admin',           label: 'إدارة',          icon: '⚙️', roles: ['admin'] },
   { path: '/surveillance',    label: 'مراقبة',         icon: '📹', roles: ['admin'] },
 ]
@@ -101,9 +103,25 @@ export default function AppLayout() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const canvasRef = useRef(null)
+  const [unverifiedCount, setUnverifiedCount] = useState(0)
 
   useEffect(() => { loadSettings(); loadProducts() }, [])
   useEffect(() => { const unsub = subscribeRealtime(); return unsub }, [])
+
+  // Poll unverified partner orders count (admin only)
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('partner_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_verified', false)
+      setUnverifiedCount(count || 0)
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 30000)
+    return () => clearInterval(interval)
+  }, [profile?.role])
 
   // Auto-start camera when app loads (admin only)
   useEffect(() => {
@@ -139,13 +157,18 @@ export default function AppLayout() {
             <button
               key={n.path}
               onClick={() => navigate(n.path)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                 location.pathname === n.path
                   ? 'bg-white text-[#1a56db] shadow'
                   : 'bg-white/15 hover:bg-white/25'
               }`}
             >
               <span>{n.icon}</span><span>{n.label}</span>
+              {n.path === '/partner-account' && unverifiedCount > 0 && (
+                <span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                  {unverifiedCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>

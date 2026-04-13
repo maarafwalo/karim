@@ -1,9 +1,10 @@
 /**
  * PartnerAccountPage — للمدير (أنت وأخوك)
  * متابعة حساب سعيد وكل الشركاء الموثوقين:
- * - البضاعة التي أخذها (طلبات الكتالوج المؤكدة)
+ * - البضاعة التي أخذها (من partner_orders الجديد + catalog_orders القديم)
  * - الأموال التي دفعها
  * - الرصيد المتبقي عليه
+ * - تأكيد الطلبات غير المؤكدة
  */
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase.js'
@@ -102,62 +103,106 @@ function PaymentModal({ partner, onClose, onSave }) {
 
 // ── Partner detail view ────────────────────────────────────────
 function PartnerDetail({ partner, onBack }) {
+  const { profile }      = useAuthStore()
   const [orders, setOrders]     = useState([])
   const [payments, setPayments] = useState([])
   const [loading, setLoading]   = useState(true)
   const [showPayModal, setShowPayModal] = useState(false)
-  const [tab, setTab]           = useState('all') // 'all' | 'orders' | 'payments'
+  const [tab, setTab]           = useState('all')
+  const [verifying, setVerifying] = useState(null) // order id being verified
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [ordRes, payRes] = await Promise.all([
+    const [newOrdRes, oldOrdRes, payRes] = await Promise.all([
+      // New partner_orders
+      supabase
+        .from('partner_orders')
+        .select('*, partner_order_items(*)')
+        .eq('partner_id', partner.id)
+        .order('created_at', { ascending: false }),
+      // Legacy catalog_orders
       supabase
         .from('catalog_orders')
         .select('*, catalog_order_items(*)')
         .eq('vendor_id', partner.id)
         .eq('is_partner_request', true)
+        .eq('stock_approved', true)
         .order('created_at', { ascending: false }),
+      // Payments
       supabase
         .from('partner_payments')
         .select('*')
         .eq('partner_id', partner.id)
         .order('date', { ascending: false }),
     ])
-    setOrders(ordRes.data || [])
+    setOrders([
+      ...(newOrdRes.data || []).map(o => ({ ...o, _source: 'new' })),
+      ...(oldOrdRes.data || []).map(o => ({
+        id:           o.id,
+        created_at:   o.created_at,
+        order_number: o.order_number,
+        total_amount: o.total,
+        is_verified:  true, // old orders are considered verified
+        partner_order_items: (o.catalog_order_items || []).map(i => ({
+          product_name:       i.product_name,
+          quantity:           i.quantity,
+          custom_unit_price:  i.unit_price || 0,
+          total:              i.total,
+        })),
+        _source: 'legacy',
+      })),
+    ])
     setPayments(payRes.data || [])
     setLoading(false)
   }, [partner.id])
 
   useEffect(() => { load() }, [load])
 
-  // Balance calculation — only approved orders count
-  const approvedOrders = orders.filter(o => o.stock_approved)
-  const totalGoods     = approvedOrders.reduce((s, o) => s + Number(o.total || 0), 0)
-  const totalPaid      = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const balance        = totalGoods - totalPaid
-  const pendingOrders  = orders.filter(o => !o.stock_approved)
+  const handleVerify = async (orderId) => {
+    setVerifying(orderId)
+    const { error } = await supabase.rpc('verify_partner_order', {
+      p_order_id: orderId,
+      p_admin_id: profile?.id,
+    })
+    setVerifying(null)
+    if (error) { toast.error('فشل التأكيد: ' + error.message); return }
+    toast.success('✅ تم تأكيد الطلب')
+    load()
+  }
+
+  // Balance — all orders count (stock already left)
+  const totalGoods   = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0)
+  const totalPaid    = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
+  const balance      = totalGoods - totalPaid
+  const unverified   = orders.filter(o => !o.is_verified)
 
   // Combined timeline
   const timeline = [
-    ...approvedOrders.map(o => ({
-      id:     o.id,
-      type:   'order',
-      date:   o.stock_approved_at || o.created_at,
-      amount: Number(o.total || 0),
-      label:  `📦 أخذ بضاعة — ${o.order_number}`,
-      items:  o.catalog_order_items || [],
-      ref:    o,
+    ...orders.map(o => ({
+      id:         o.id,
+      type:       'order',
+      date:       o.created_at,
+      amount:     Number(o.total_amount || 0),
+      label:      `📦 أخذ بضاعة — ${o.order_number}`,
+      items:      o.partner_order_items || [],
+      verified:   o.is_verified,
+      source:     o._source,
+      orderId:    o.id,
     })),
     ...payments.map(p => ({
-      id:     p.id,
-      type:   'payment',
-      date:   p.created_at,
-      amount: Number(p.amount || 0),
-      label:  `💰 دفع — ${p.recorded_by_name || 'مدير'}`,
-      notes:  p.notes,
-      ref:    p,
+      id:       p.id,
+      type:     'payment',
+      date:     p.date || p.created_at,
+      amount:   Number(p.amount || 0),
+      label:    `💰 دفع — ${p.recorded_by_name || 'مدير'}`,
+      notes:    p.notes,
+      verified: true,
     })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const filtered = tab === 'all'    ? timeline
+    : tab === 'orders'   ? timeline.filter(t => t.type === 'order')
+    : timeline.filter(t => t.type === 'payment')
 
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic bg-gray-50" dir="rtl">
@@ -207,13 +252,12 @@ function PartnerDetail({ partner, onBack }) {
         </div>
       </div>
 
-      {/* Pending orders alert */}
-      {pendingOrders.length > 0 && (
+      {/* Unverified orders alert */}
+      {unverified.length > 0 && (
         <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 flex-shrink-0">
           <span className="text-amber-500 animate-pulse">⚠️</span>
           <p className="text-xs text-amber-700 font-bold">
-            {pendingOrders.length} طلب بانتظار تأكيد عمران —
-            غير محتسبة في الرصيد حتى التأكيد
+            {unverified.length} طلب بانتظار التأكيد — اضغط "تأكيد" على كل طلب بعد مراجعته
           </p>
         </div>
       )}
@@ -221,9 +265,9 @@ function PartnerDetail({ partner, onBack }) {
       {/* Tabs */}
       <div className="flex gap-1 px-4 pb-3 flex-shrink-0">
         {[
-          { k: 'all',      l: 'الكل',         count: timeline.length },
-          { k: 'orders',   l: '📦 البضاعة',   count: approvedOrders.length },
-          { k: 'payments', l: '💰 الدفعات',   count: payments.length },
+          { k: 'all',      l: 'الكل',       count: timeline.length },
+          { k: 'orders',   l: '📦 البضاعة', count: orders.length },
+          { k: 'payments', l: '💰 الدفعات', count: payments.length },
         ].map(({ k, l, count }) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -244,65 +288,65 @@ function PartnerDetail({ partner, onBack }) {
           </div>
         )}
 
-        {!loading && timeline.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <p className="text-4xl mb-3">📋</p>
             <p className="font-bold">لا توجد معاملات بعد</p>
-            <p className="text-sm mt-1">سعيد لم يأخذ بضاعة ولم يدفع بعد</p>
           </div>
         )}
 
-        {/* Orders tab — show pending too */}
-        {!loading && tab === 'orders' && pendingOrders.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-bold text-amber-600 mb-2">⏳ طلبات بانتظار تأكيد عمران</p>
-            {pendingOrders.map(o => (
-              <div key={o.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2 opacity-70">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-sm text-amber-800">{o.order_number}</p>
-                    <p className="text-xs text-amber-600">{fmtDate(o.created_at)}</p>
-                  </div>
-                  <div className="text-left">
-                    <p className="font-black text-amber-700">{fmt(o.total)} د</p>
-                    <p className="text-[10px] text-amber-500">بانتظار عمران</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && (tab === 'all' ? timeline : tab === 'orders'
-          ? timeline.filter(t => t.type === 'order')
-          : timeline.filter(t => t.type === 'payment')
-        ).map(entry => (
+        {!loading && filtered.map(entry => (
           <div key={entry.id + entry.type}
-            className={`bg-white rounded-2xl border p-4 flex items-start gap-3 ${
-              entry.type === 'order' ? 'border-red-100' : 'border-green-100'
+            className={`bg-white rounded-2xl border p-4 ${
+              entry.type === 'order'
+                ? entry.verified ? 'border-red-100' : 'border-amber-300 bg-amber-50/50'
+                : 'border-green-100'
             }`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${
-              entry.type === 'order' ? 'bg-red-50' : 'bg-green-50'
-            }`}>
-              {entry.type === 'order' ? '📦' : '💰'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-gray-900 text-sm">{entry.label}</p>
-              {entry.notes && <p className="text-xs text-gray-500">{entry.notes}</p>}
-              {entry.type === 'order' && entry.items?.length > 0 && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {entry.items.slice(0, 2).map(it => it.product_name).join(' · ')}
-                  {entry.items.length > 2 && ` + ${entry.items.length - 2} أخرى`}
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${
+                entry.type === 'order' ? 'bg-red-50' : 'bg-green-50'
+              }`}>
+                {entry.type === 'order' ? '📦' : '💰'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-bold text-gray-900 text-sm">{entry.label}</p>
+                  {entry.type === 'order' && !entry.verified && (
+                    <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2 py-0.5 rounded-full animate-pulse">
+                      ⏳ بانتظار التأكيد
+                    </span>
+                  )}
+                  {entry.type === 'order' && entry.verified && (
+                    <span className="text-[10px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">
+                      ✅ مؤكد
+                    </span>
+                  )}
+                </div>
+                {entry.notes && <p className="text-xs text-gray-500">{entry.notes}</p>}
+                {entry.type === 'order' && entry.items?.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {entry.items.slice(0, 2).map(it => it.product_name).join(' · ')}
+                    {entry.items.length > 2 && ` + ${entry.items.length - 2} أخرى`}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.date)}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                <p className={`font-black text-base ${entry.type === 'order' ? 'text-red-600' : 'text-green-600'}`}>
+                  {entry.type === 'order' ? '+' : '−'}{fmt(entry.amount)}
+                  <span className="text-xs font-normal text-gray-400 mr-0.5">د</span>
                 </p>
-              )}
-              <p className="text-xs text-gray-400 mt-0.5">{fmtDate(entry.date)}</p>
-            </div>
-            <div className="text-left flex-shrink-0">
-              <p className={`font-black text-base ${entry.type === 'order' ? 'text-red-600' : 'text-green-600'}`}>
-                {entry.type === 'order' ? '+' : '-'}{fmt(entry.amount)}
-              </p>
-              <p className="text-[10px] text-gray-400">درهم</p>
+                {entry.type === 'order' && !entry.verified && (
+                  <button
+                    onClick={() => handleVerify(entry.orderId)}
+                    disabled={verifying === entry.orderId}
+                    className="bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white text-[10px] font-black px-3 py-1 rounded-lg transition-colors"
+                  >
+                    {verifying === entry.orderId ? '⏳' : '✅ تأكيد'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -324,11 +368,10 @@ export default function PartnerAccountPage() {
   const [partners, setPartners]   = useState([])
   const [selected, setSelected]   = useState(null)
   const [loading, setLoading]     = useState(true)
-  const [summaries, setSummaries] = useState({}) // { partnerId: { goods, paid, balance } }
+  const [summaries, setSummaries] = useState({})
 
   const load = useCallback(async () => {
     setLoading(true)
-    // Load all trusted_partner users
     const { data: users } = await supabase
       .from('profiles')
       .select('*')
@@ -338,28 +381,25 @@ export default function PartnerAccountPage() {
     if (!users?.length) { setPartners([]); setLoading(false); return }
     setPartners(users)
 
-    // Load summaries for each partner
     const ids = users.map(u => u.id)
-    const [ordRes, payRes] = await Promise.all([
-      supabase
-        .from('catalog_orders')
-        .select('vendor_id, total, stock_approved')
-        .eq('is_partner_request', true)
-        .in('vendor_id', ids),
-      supabase
-        .from('partner_payments')
-        .select('partner_id, amount')
-        .in('partner_id', ids),
+
+    const [newOrdRes, oldOrdRes, payRes] = await Promise.all([
+      supabase.from('partner_orders').select('partner_id, total_amount, is_verified').in('partner_id', ids),
+      supabase.from('catalog_orders').select('vendor_id, total, stock_approved').eq('is_partner_request', true).in('vendor_id', ids),
+      supabase.from('partner_payments').select('partner_id, amount').in('partner_id', ids),
     ])
 
     const sums = {}
     users.forEach(u => {
-      const myOrders  = (ordRes.data || []).filter(o => o.vendor_id === u.id)
-      const approved  = myOrders.filter(o => o.stock_approved)
-      const goods     = approved.reduce((s, o) => s + Number(o.total || 0), 0)
-      const paid      = (payRes.data || []).filter(p => p.partner_id === u.id).reduce((s, p) => s + Number(p.amount || 0), 0)
-      const pending   = myOrders.filter(o => !o.stock_approved).length
-      sums[u.id]      = { goods, paid, balance: goods - paid, pending }
+      const newOrders = (newOrdRes.data || []).filter(o => o.partner_id === u.id)
+      const oldOrders = (oldOrdRes.data || []).filter(o => o.vendor_id === u.id && o.stock_approved)
+      const goods = [
+        ...newOrders.map(o => Number(o.total_amount || 0)),
+        ...oldOrders.map(o => Number(o.total || 0)),
+      ].reduce((s, v) => s + v, 0)
+      const paid    = (payRes.data || []).filter(p => p.partner_id === u.id).reduce((s, p) => s + Number(p.amount || 0), 0)
+      const pending = newOrders.filter(o => !o.is_verified).length
+      sums[u.id] = { goods, paid, balance: goods - paid, pending }
     })
     setSummaries(sums)
     setLoading(false)
@@ -374,13 +414,19 @@ export default function PartnerAccountPage() {
   const grandGoods   = Object.values(summaries).reduce((s, v) => s + v.goods, 0)
   const grandPaid    = Object.values(summaries).reduce((s, v) => s + v.paid, 0)
   const grandBalance = grandGoods - grandPaid
+  const grandPending = Object.values(summaries).reduce((s, v) => s + v.pending, 0)
 
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic bg-gray-50" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white border-b shadow-sm flex-shrink-0">
         <span className="text-xl">🤝</span>
-        <h1 className="font-black text-lg">حساب الشركاء الموثوقين</h1>
+        <h1 className="font-black text-lg flex-1">حساب الشركاء الموثوقين</h1>
+        {grandPending > 0 && (
+          <span className="text-xs bg-amber-100 text-amber-700 font-black px-3 py-1 rounded-full animate-pulse">
+            ⚠️ {grandPending} بانتظار التأكيد
+          </span>
+        )}
       </div>
 
       {/* Grand totals */}
@@ -433,11 +479,11 @@ export default function PartnerAccountPage() {
                   {partner.full_name?.charAt(0) || '؟'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-black text-gray-900">{partner.full_name}</p>
                     {s.pending > 0 && (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full animate-pulse">
-                        {s.pending} بانتظار عمران
+                      <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2 py-0.5 rounded-full animate-pulse">
+                        ⚠️ {s.pending} بانتظار التأكيد
                       </span>
                     )}
                   </div>

@@ -46,5 +46,5 @@ export const ROLE_HOME = {
   store_manager:    '/pos',
   delivery:         '/customers',
   assistant:        '/stock',
-  trusted_partner:  '/catalog',
+  trusted_partner:  '/partner-catalog',
 }

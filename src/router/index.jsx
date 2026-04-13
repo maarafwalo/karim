@@ -17,8 +17,9 @@ import DebtPage           from '../pages/debt/DebtPage.jsx'
 import SurveillancePage   from '../pages/surveillance/SurveillancePage.jsx'
 import StoreAccountsPage  from '../pages/store-accounts/StoreAccountsPage.jsx'
 import InstallPage        from '../pages/InstallPage.jsx'
-import PartnerAccountPage from '../pages/partner/PartnerAccountPage.jsx'
-import PartnerOrdersPage  from '../pages/partner/PartnerOrdersPage.jsx'
+import PartnerAccountPage  from '../pages/partner/PartnerAccountPage.jsx'
+import PartnerOrdersPage   from '../pages/partner/PartnerOrdersPage.jsx'
+import PartnerCatalogPage  from '../pages/partner/PartnerCatalogPage.jsx'
 
 function RequireAuth() {
   const { user, loading } = useAuthStore()
@@ -70,6 +71,10 @@ export const router = createBrowserRouter([
         {
           element: <RequireRole allowed={['admin', 'vendor', 'trusted_partner']} />,
           children: [{ path: 'catalog', element: <CatalogPage /> }],
+        },
+        {
+          element: <RequireRole allowed={['trusted_partner']} />,
+          children: [{ path: 'partner-catalog', element: <PartnerCatalogPage /> }],
         },
         {
           element: <RequireRole allowed={['admin', 'stock_manager', 'assistant', 'store_manager']} />,
