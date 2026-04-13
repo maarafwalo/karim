@@ -317,14 +317,14 @@ export default function PartnerCatalogPage() {
             <button
               key={cat.id ?? cat.name}
               onClick={() => setActiveCat(cat.name)}
-              className={`flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+              title={cat.name}
+            className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-base transition-all ${
                 activeCat === cat.name
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-amber-100'
+                  ? 'bg-amber-500 shadow-md'
+                  : 'bg-gray-100 hover:bg-amber-100'
               }`}
             >
-              {cat.emoji && <span>{cat.emoji}</span>}
-              <span>{cat.name}</span>
+              <span>{cat.emoji || cat.name?.charAt(0)}</span>
             </button>
           ))}
         </div>
