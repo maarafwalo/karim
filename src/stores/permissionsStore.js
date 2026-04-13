@@ -44,6 +44,7 @@ const DEFAULT_PERMISSIONS = {
   trusted_partner: {
     pos: false, customers: false, expenses: false, debt: false,
     catalog: true, stock: false, editing: false, suppliers: false, reports: false, surveillance: false,
+    'partner-catalog': true, 'my-account': true,
   },
 }
 

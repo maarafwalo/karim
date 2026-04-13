@@ -23,6 +23,7 @@ const NAV = [
   { path: '/partner-account',  label: 'حساب سعيد',       icon: '🤝', roles: ['admin'] },
   { path: '/partner-orders',   label: 'طلبات الشركاء',   icon: '📋', roles: ['admin','stock_manager'] },
   { path: '/partner-catalog',  label: 'طلب بضاعة',       icon: '🛒', roles: ['trusted_partner'] },
+  { path: '/my-account',       label: 'حسابي',            icon: '⚖️', roles: ['trusted_partner'] },
   { path: '/admin',           label: 'إدارة',          icon: '⚙️', roles: ['admin'] },
   { path: '/surveillance',    label: 'مراقبة',         icon: '📹', roles: ['admin'] },
 ]
@@ -134,6 +135,8 @@ export default function AppLayout() {
   const allowedNav = NAV.filter(n => {
     if (!n.roles.includes(profile?.role)) return false
     if (profile?.role === 'admin') return true
+    // trusted_partner always sees their own dedicated pages
+    if (profile?.role === 'trusted_partner') return true
     const pageKey = n.path.replace('/', '')
     return canAccess(profile?.role, pageKey)
   })
