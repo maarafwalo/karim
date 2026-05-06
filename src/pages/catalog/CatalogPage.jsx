@@ -6,6 +6,51 @@ import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { fmt, generateOrderNumber } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
+// ── Virtual Keyboard (Arabic + numbers, for touch devices) ────
+const AR_LAYOUT = [
+  ['1','2','3','4','5','6','7','8','9','0'],
+  ['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],
+  ['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],
+  ['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],
+]
+const NUM_LAYOUT = [
+  ['1','2','3'],
+  ['4','5','6'],
+  ['7','8','9'],
+  ['+','0','.'],
+]
+
+function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
+  const layout = mode === 'num' ? NUM_LAYOUT : AR_LAYOUT
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 z-[60] p-2 border-t-2 border-gray-700 shadow-2xl" onMouseDown={e => e.preventDefault()}>
+      <div className="flex justify-between items-center mb-2">
+        <button onClick={onBackspace} className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg text-sm">⌫ مسح</button>
+        <span className="text-white text-xs">{mode === 'num' ? 'أرقام' : 'عربي'}</span>
+        <button onClick={onClose} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg text-sm">✕ إغلاق</button>
+      </div>
+      <div className="space-y-1">
+        {layout.map((row, ri) => (
+          <div key={ri} className={`flex gap-1 justify-center ${mode === 'num' ? 'max-w-xs mx-auto' : ''}`}>
+            {row.map((k, ki) => (
+              <button key={ki} onMouseDown={e => { e.preventDefault(); onKey(k) }}
+                className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md flex-1 py-3 min-w-[28px] text-base shadow">
+                {k}
+              </button>
+            ))}
+          </div>
+        ))}
+        <div className="flex gap-1 justify-center">
+          <button onMouseDown={e => { e.preventDefault(); onKey(' ') }}
+            className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md py-3 px-12 text-base shadow">
+            مسافة
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Product Card ──────────────────────────────────────────────
 function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
   const [imgError, setImgError] = useState(false)
@@ -60,6 +105,16 @@ export default function CatalogPage() {
   const [customer, setCustomer] = useState({ name:'', phone:'', address:'' })
   const [showOrder, setShowOrder] = useState(false)
   const [sending, setSending]   = useState(false)
+  const [activeField, setActiveField] = useState(null)  // 'name'|'phone'|'address'|null
+
+  const kbInsert = (ch) => {
+    if (!activeField) return
+    setCustomer(c => ({ ...c, [activeField]: (c[activeField] || '') + ch }))
+  }
+  const kbBackspace = () => {
+    if (!activeField) return
+    setCustomer(c => ({ ...c, [activeField]: (c[activeField] || '').slice(0, -1) }))
+  }
 
   const cur      = settings?.currency || 'درهم'
   const products = filteredProducts()
@@ -319,31 +374,51 @@ export default function CatalogPage() {
 
       {/* Order / customer info modal */}
       {showOrder && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 pt-10 animate-fade-in" style={{ paddingBottom: activeField ? '320px' : '16px' }}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
             <h2 className="font-black text-lg mb-4">👤 معلومات الزبون</h2>
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-bold block mb-1">الاسم *</label>
-                <input value={customer.name} onChange={e=>setCustomer(c=>({...c,name:e.target.value}))} className="inp" placeholder="محمد أحمد" />
+                <input value={customer.name}
+                  onFocus={() => setActiveField('name')}
+                  onChange={e=>setCustomer(c=>({...c,name:e.target.value}))}
+                  className={`inp ${activeField === 'name' ? 'ring-2 ring-primary' : ''}`} placeholder="محمد أحمد" />
               </div>
               <div>
                 <label className="text-sm font-bold block mb-1">الهاتف *</label>
-                <input value={customer.phone} onChange={e=>setCustomer(c=>({...c,phone:e.target.value}))} className="inp" placeholder="0600000000" />
+                <input value={customer.phone}
+                  onFocus={() => setActiveField('phone')}
+                  onChange={e=>setCustomer(c=>({...c,phone:e.target.value}))}
+                  inputMode="tel"
+                  className={`inp ${activeField === 'phone' ? 'ring-2 ring-primary' : ''}`} placeholder="0600000000" />
               </div>
               <div>
                 <label className="text-sm font-bold block mb-1">العنوان</label>
-                <input value={customer.address} onChange={e=>setCustomer(c=>({...c,address:e.target.value}))} className="inp" placeholder="الحي، المدينة" />
+                <input value={customer.address}
+                  onFocus={() => setActiveField('address')}
+                  onChange={e=>setCustomer(c=>({...c,address:e.target.value}))}
+                  className={`inp ${activeField === 'address' ? 'ring-2 ring-primary' : ''}`} placeholder="الحي، المدينة" />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowOrder(false)} className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl">إلغاء</button>
+              <button onClick={() => { setActiveField(null); setShowOrder(false) }} className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl">إلغاء</button>
               <button onClick={sendOrder} disabled={sending}
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white font-black py-2.5 rounded-xl transition-colors disabled:opacity-60">
                 {sending ? '...' : '📋 حفظ وإرسال'}
               </button>
             </div>
           </div>
+
+          {/* Virtual keyboard appears when an input is focused */}
+          {activeField && (
+            <VirtualKeyboard
+              mode={activeField === 'phone' ? 'num' : 'ar'}
+              onKey={kbInsert}
+              onBackspace={kbBackspace}
+              onClose={() => setActiveField(null)}
+            />
+          )}
         </div>
       )}
     </div>
