@@ -38,13 +38,12 @@ export const ROLE_LABELS = {
   trusted_partner:  '🤝 شريك موثوق',
 }
 
+export const getFirstName = (fullName) => fullName?.split(' ')[0] || '—'
+
 export const ROLE_HOME = {
   admin:            '/pos',
   cashier:          '/pos',
   stock_manager:    '/stock',
-  vendor:           '/catalog',
   store_manager:    '/pos',
-  delivery:         '/customers',
   assistant:        '/stock',
-  trusted_partner:  '/partner-catalog',
 }

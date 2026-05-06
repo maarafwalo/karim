@@ -19,7 +19,6 @@ const NAV = [
   { path: '/stock',           label: 'مخزن',           icon: '📦', roles: ['admin','stock_manager','assistant','store_manager'] },
   { path: '/suppliers',       label: 'موردون',         icon: '🚚', roles: ['admin','stock_manager'] },
   { path: '/reports',         label: 'تقارير',         icon: '📊', roles: ['admin','store_manager'] },
-  { path: '/store-accounts',   label: 'حسابات الفروع',   icon: '🏦', roles: ['admin'] },
   { path: '/partner-account',  label: 'حساب سعيد',       icon: '🤝', roles: ['admin'] },
   { path: '/partner-orders',   label: 'طلبات الشركاء',   icon: '📋', roles: ['admin','stock_manager'] },
   { path: '/partner-catalog',  label: 'طلب بضاعة',       icon: '🛒', roles: ['trusted_partner'] },

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
-import { supabase } from '../../lib/supabase.js'
-import { fmt, generateOrderNumber, buildWhatsApp, STORE_PHONE } from '../../lib/utils.js'
+import { supabase, supabaseAdmin } from '../../lib/supabase.js'
+import { fmt, generateOrderNumber } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
 // ── Product Card ──────────────────────────────────────────────
@@ -12,35 +12,35 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
   return (
     <div className={`bg-white rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg border-2 ${inBag ? 'border-primary shadow-md' : 'border-gray-100 shadow-sm'}`}>
       {/* Image area */}
-      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 200 }}>
+      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 130 }}>
         {p.image_url && !imgError
-          ? <img src={p.image_url} alt={p.name} className="w-full h-full object-contain p-2" loading="lazy" onError={() => setImgError(true)} />
-          : <span className="text-5xl">{p.emoji || '📦'}</span>
+          ? <img src={p.image_url} alt={p.name} className="w-full h-full object-contain p-1.5" loading="lazy" onError={() => setImgError(true)} />
+          : <span className="text-4xl">{p.emoji || '📦'}</span>
         }
         {inBag && (
-          <span className="absolute top-2 left-2 bg-primary text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md">
+          <span className="absolute top-1.5 left-1.5 bg-primary text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md">
             {inBag.qty}
           </span>
         )}
       </div>
 
       {/* Info area */}
-      <div className="flex flex-col flex-1 p-3 gap-1">
-        <p className="text-sm font-bold text-gray-800 leading-snug flex-1"
-          style={{ display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden', minHeight:'2.8rem' }}>
+      <div className="flex flex-col flex-1 p-2 gap-0.5">
+        <p className="text-xs font-bold text-gray-800 leading-tight flex-1"
+          style={{ display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden', minHeight:'2.2rem' }}>
           {p.name}
         </p>
-        {p.size && <p className="text-xs text-slate-400">{p.size}</p>}
+        {p.size && <p className="text-[10px] text-slate-400 leading-tight">{p.size}</p>}
         <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-gray-100">
-          <span className="text-base font-black text-red-600">{fmt(p.sell_price)} <span className="text-xs text-slate-400 font-normal">{cur}</span></span>
+          <span className="text-sm font-black text-red-600 leading-none">{fmt(p.sell_price)} <span className="text-[9px] text-slate-400 font-normal">{cur}</span></span>
           {inBag ? (
             <div className="flex items-center gap-0.5">
               <button onClick={onDec} className="w-6 h-6 bg-gray-100 rounded-md text-base font-black hover:bg-gray-200 flex items-center justify-center leading-none">−</button>
-              <span className="text-sm font-black text-primary w-5 text-center">{inBag.qty}</span>
+              <span className="text-xs font-black text-primary w-5 text-center">{inBag.qty}</span>
               <button onClick={onInc} className="w-6 h-6 bg-primary text-white rounded-md text-base font-black flex items-center justify-center leading-none">+</button>
             </div>
           ) : (
-            <button onClick={onAdd} className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-2 py-1 text-[11px] font-bold transition-colors">
+            <button onClick={onAdd} className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-2 py-1 text-[10px] font-bold transition-colors leading-none">
               + إضافة
             </button>
           )}
@@ -127,50 +127,81 @@ export default function CatalogPage() {
     setSending(true)
     const orderNum = generateOrderNumber('ORD')
 
+    // Use admin client to bypass RLS if available, otherwise anon (with proper RLS policy)
+    const db = supabaseAdmin || supabase
+
+    // Add 8-second timeout so UI never hangs forever
+    const withTimeout = (p, ms = 8000) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت المهلة (timeout)')), ms))
+    ])
+
+    let saved = false
+    let saveError = null
     try {
-      const { data: order } = await supabase.from('catalog_orders').insert({
-        order_number:      orderNum,
-        vendor_id:         profile?.id || null,
-        customer_name:     customer.name,
-        customer_phone:    customer.phone,
-        customer_address:  customer.address,
-        subtotal:          bagTotal,
-        total:             bagTotal,
-        status:            'new',
-        wa_sent:           true,
-        is_partner_request: false,
-      }).select().single()
+      const { data: order, error: ordErr } = await withTimeout(
+        db.from('catalog_orders').insert({
+          order_number:      orderNum,
+          vendor_id:         profile?.id || null,
+          customer_name:     customer.name,
+          customer_phone:    customer.phone,
+          customer_address:  customer.address,
+          subtotal:          bagTotal,
+          total:             bagTotal,
+          status:            'new',
+          wa_sent:           false,
+          is_partner_request: false,
+        }).select().single()
+      )
+
+      if (ordErr) throw ordErr
 
       if (order) {
-        await supabase.from('catalog_order_items').insert(
-          bag.map(b => ({
-            order_id:     order.id,
-            product_id:   b.product.id,
-            product_name: b.product.name,
-            unit_price:   b.product.sell_price,
-            quantity:     b.qty,
-            total:        b.product.sell_price * b.qty,
-          }))
+        const { error: itemsErr } = await withTimeout(
+          db.from('catalog_order_items').insert(
+            bag.map(b => ({
+              order_id:     order.id,
+              product_id:   b.product.id,
+              product_name: b.product.name,
+              unit_price:   b.product.sell_price,
+              quantity:     b.qty,
+              total:        b.product.sell_price * b.qty,
+            }))
+          )
         )
+        if (itemsErr) throw itemsErr
+        saved = true
       }
-    } catch (e) { /* offline mode */ }
+    } catch (e) {
+      saveError = e
+      console.error('Order save failed:', e)
+    }
 
-    const lines = bag.map(b =>
-      `• ${b.product.name}${b.product.size ? ` (${b.product.size})` : ''} × ${b.qty} = ${fmt(b.product.sell_price * b.qty)} ${cur}`
-    ).join('\n')
-
-    const msg = `🛒 طلب جديد — ${orderNum}\n\n` +
-      `👤 ${customer.name}\n📞 ${customer.phone}\n` +
-      (customer.address ? `📍 ${customer.address}\n` : '') +
-      `\n${lines}\n\n💰 الإجمالي: ${fmt(bagTotal)} ${cur}`
-
-    window.open(buildWhatsApp(settings?.phone || STORE_PHONE, msg), '_blank')
-
+    // Always reset sending state (even on error)
     setSending(false)
+
+    if (!saved) {
+      // Save locally so order isn't lost even if Supabase failed
+      try {
+        const pending = JSON.parse(localStorage.getItem('pending_orders') || '[]')
+        pending.push({
+          order_number: orderNum,
+          customer, bag,
+          subtotal: bagTotal, total: bagTotal,
+          status: 'new',
+          created_at: new Date().toISOString(),
+          error: saveError?.message || 'unknown',
+        })
+        localStorage.setItem('pending_orders', JSON.stringify(pending))
+      } catch {/* noop */}
+      toast.error(`⚠ فشل الحفظ: ${saveError?.message || 'خطأ'} — حُفظ محلياً`, { duration: 6000 })
+      return
+    }
+
+    toast.success(`✔ تم حفظ الفاتورة #${orderNum} وإرسالها للإدارة`, { duration: 4000 })
     setShowOrder(false)
     setBag([])
     setCustomer({ name:'', phone:'', address:'' })
-    toast.success('✔ تم إرسال الطلب')
   }
 
   return (
@@ -194,7 +225,7 @@ export default function CatalogPage() {
       </div>
 
       {/* Products grid */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-2 pb-24">
         {loading ? (
           <div className="flex items-center justify-center h-full text-slate-400 text-sm gap-2">
             <span className="animate-spin text-xl">⏳</span>
@@ -206,7 +237,7 @@ export default function CatalogPage() {
             <span className="text-sm">لا توجد منتجات</span>
           </div>
         ) : (
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {products.map(p => {
               const inBag = bag.find(b => b.product.id === p.id)
               return (
@@ -273,7 +304,7 @@ export default function CatalogPage() {
               ) : (
                 <button onClick={() => { setShowBag(false); setShowOrder(true) }}
                   className="w-full bg-green-500 text-white font-black py-3 rounded-xl text-base hover:bg-green-600 transition-colors">
-                  📱 إرسال الطلب عبر واتساب
+                  📋 حفظ الفاتورة وإرسالها للإدارة
                 </button>
               )}
               {isPartner && (
@@ -309,7 +340,7 @@ export default function CatalogPage() {
               <button onClick={() => setShowOrder(false)} className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl">إلغاء</button>
               <button onClick={sendOrder} disabled={sending}
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white font-black py-2.5 rounded-xl transition-colors disabled:opacity-60">
-                {sending ? '...' : '📱 إرسال'}
+                {sending ? '...' : '📋 حفظ وإرسال'}
               </button>
             </div>
           </div>

@@ -14,23 +14,42 @@ export const useCartStore = create(
       returnMode:     false,
       heldCarts:      [],        // parked invoices: [{ id, heldAt, items, customer, notes, discountType, discountValue }]
 
-      addItem: (product) => set(state => {
-        if (state.returnMode) return state  // block add during return mode
-        // Apply price tier: wholesale customers get wholesale_price if set
-        const price = (state.customer?.price_tier === 'wholesale' && product.wholesale_price > 0)
-          ? product.wholesale_price
-          : product.sell_price
-        const productWithPrice = { ...product, sell_price: price }
-        const existing = state.items.find(i => i.id === product.id)
-        const maxQty   = product.stock ?? Infinity
-        if (existing) {
-          if (existing.qty >= maxQty) return state
-          return { items: state.items.map(i =>
-            i.id === product.id ? { ...i, qty: i.qty + 1 } : i
-          )}
+      // ignoreStock: true when adding via barcode scan (item is physically present)
+      addItem: (product, { ignoreStock = false } = {}) => {
+        let status = 'added'
+        set(state => {
+          if (state.returnMode) { status = 'returnMode'; return state }
+          const price = (state.customer?.price_tier === 'wholesale' && product.wholesale_price > 0)
+            ? product.wholesale_price
+            : product.sell_price
+          const productWithPrice = { ...product, sell_price: price }
+          const existing = state.items.find(i => i.id === product.id)
+          const maxQty   = ignoreStock ? Infinity : (product.stock ?? Infinity)
+          if (existing) {
+            if (existing.qty >= maxQty) { status = 'maxStock'; return state }
+            status = 'increased'
+            return { items: state.items.map(i =>
+              i.id === product.id ? { ...i, qty: i.qty + 1 } : i
+            )}
+          }
+          if (!ignoreStock && maxQty <= 0) { status = 'outOfStock'; return state }
+          return { items: [...state.items, { ...productWithPrice, qty: 1, isReturn: false }] }
+        })
+        return status
+      },
+
+      // Scale item: always a new line, price = total from barcode, qty = 1
+      addScaleItem: (product, totalPrice) => set(state => {
+        if (state.returnMode) return state
+        const scaleItem = {
+          ...product,
+          id:         product.id + '_scale_' + Date.now(), // unique per scan
+          sell_price: totalPrice,
+          qty:        1,
+          isReturn:   false,
+          _isScale:   true,
         }
-        if (maxQty <= 0) return state
-        return { items: [...state.items, { ...productWithPrice, qty: 1, isReturn: false }] }
+        return { items: [...state.items, scaleItem] }
       }),
 
       removeOne: (id) => set(state => ({
@@ -136,10 +155,11 @@ export const useCartStore = create(
                               : discountValue
         discount           = Math.min(Math.max(discount, 0), subtotal)
         const afterDisc    = subtotal - discount - returnTotal
-        const tva          = tvaRate > 0 ? afterDisc * tvaRate / 100 : 0
-        const total        = Math.max(afterDisc + tva, 0)
-        const change       = amountPaid > 0 ? amountPaid - total : 0
-        return { subtotal, discount, returnTotal, tva, tvaRate, total, change, amountPaid }
+        const tva          = tvaRate > 0 ? Math.max(afterDisc, 0) * tvaRate / 100 : 0
+        const total        = afterDisc + tva   // negative = refund owed to customer
+        const isRefund     = total < 0
+        const change       = !isRefund && amountPaid > 0 ? amountPaid - total : 0
+        return { subtotal, discount, returnTotal, tva, tvaRate, total, isRefund, change, amountPaid }
       },
     }),
     { name: 'joud_cart', partialize: (s) => ({ items: s.items, customer: s.customer, heldCarts: s.heldCarts }) }
