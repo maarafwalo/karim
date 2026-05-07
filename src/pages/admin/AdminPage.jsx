@@ -5,6 +5,9 @@ import { useStoreContext } from '../../stores/storeContext.js'
 import { usePermissionsStore, PAGES } from '../../stores/permissionsStore.js'
 import { supabase } from '../../lib/supabase.js'
 import { fmt, fmtDate, ROLE_LABELS } from '../../lib/utils.js'
+import DebtPage      from '../debt/DebtPage.jsx'
+import SuppliersPage from '../suppliers/SuppliersPage.jsx'
+import ReportsPage   from '../reports/ReportsPage.jsx'
 import toast from 'react-hot-toast'
 
 // ── Settings Tab ─────────────────────────────────────────────
@@ -473,24 +476,30 @@ export default function AdminPage() {
     { id:'permissions',  label:'🔐 الصلاحيات' },
     { id:'stores',       label:'🏬 الفروع' },
     { id:'stats',        label:'📊 الإحصائيات' },
+    { id:'accounting',   label:'💼 محاسبة' },
+    { id:'suppliers',    label:'🚚 موردون' },
+    { id:'reports',      label:'📈 تقارير' },
   ]
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
       {/* Tab bar */}
-      <div className="flex gap-1 p-2 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="flex gap-1 p-2 bg-white border-b border-gray-100 flex-shrink-0 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 text-sm font-bold py-2 rounded-xl transition-all ${tab===t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            className={`flex-shrink-0 text-sm font-bold px-3 py-2 rounded-xl transition-all whitespace-nowrap ${tab===t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {t.label}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {tab === 'settings'    && <SettingsTab />}
-        {tab === 'users'       && <UsersTab />}
-        {tab === 'permissions' && <PermissionsTab />}
-        {tab === 'stores'      && <StoresTab />}
-        {tab === 'stats'       && <StatsTab />}
+      <div className="flex-1 overflow-hidden">
+        {tab === 'settings'    && <div className="h-full overflow-y-auto"><SettingsTab /></div>}
+        {tab === 'users'       && <div className="h-full overflow-y-auto"><UsersTab /></div>}
+        {tab === 'permissions' && <div className="h-full overflow-y-auto"><PermissionsTab /></div>}
+        {tab === 'stores'      && <div className="h-full overflow-y-auto"><StoresTab /></div>}
+        {tab === 'stats'       && <div className="h-full overflow-y-auto"><StatsTab /></div>}
+        {tab === 'accounting'  && <DebtPage />}
+        {tab === 'suppliers'   && <SuppliersPage />}
+        {tab === 'reports'     && <ReportsPage />}
       </div>
     </div>
   )
