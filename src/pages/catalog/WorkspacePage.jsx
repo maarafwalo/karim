@@ -471,14 +471,7 @@ function OrderDetails({ orderId, cur, editable, onEdit, onDelete, customerAddres
           })}
         </div>
       )}
-      {editable ? (
-        <div className="flex gap-2 pt-1">
-          <button onClick={onEdit}
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-lg text-xs transition active:scale-95">✏️ تعديل</button>
-          <button onClick={onDelete}
-            className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 rounded-lg text-xs transition active:scale-95">🗑 حذف</button>
-        </div>
-      ) : (
+      {!editable && (
         <div className="text-[10px] text-slate-400 text-center pt-1">⚠ تم بدء معالجة الطلب — لا يمكن التعديل</div>
       )}
     </div>
@@ -595,22 +588,39 @@ function OrdersTab({ cur, profile }) {
             const expanded = expandedId === o.id
             return (
               <div key={o.id} className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
-                <button onClick={() => setExpandedId(expanded ? null : o.id)}
-                  className="w-full px-3 py-2.5 flex items-start justify-between gap-2 hover:bg-slate-50 transition">
-                  <div className="flex-1 text-right min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-sm text-slate-900 truncate">{o.customer_name}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.txt}</span>
+                <div className="flex items-stretch gap-1.5 px-2 py-2 hover:bg-slate-50 transition">
+                  <button onClick={() => setExpandedId(expanded ? null : o.id)}
+                    className="flex-1 flex items-start justify-between gap-2 text-right min-w-0 px-1">
+                    <div className="flex-1 text-right min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-slate-900 truncate">{o.customer_name}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.txt}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        #{o.order_number} · {new Date(o.created_at).toLocaleDateString('fr-FR')} · {new Date(o.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
-                      #{o.order_number} · {new Date(o.created_at).toLocaleDateString('fr-FR')} · {new Date(o.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    <div className="text-left flex-shrink-0">
+                      <div className="font-black text-sm text-slate-900">{fmt(o.total)} <span className="text-[10px] font-normal text-slate-400">{cur}</span></div>
+                      <div className="text-[10px] text-slate-400">{expanded ? '▲' : '▼'}</div>
                     </div>
-                  </div>
-                  <div className="text-left flex-shrink-0">
-                    <div className="font-black text-sm text-slate-900">{fmt(o.total)} <span className="text-[10px] font-normal text-slate-400">{cur}</span></div>
-                    <div className="text-[10px] text-slate-400">{expanded ? '▲' : '▼'}</div>
-                  </div>
-                </button>
+                  </button>
+                  {/* Inline action buttons — visible without needing to expand */}
+                  {editable && (
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <button onClick={() => editOrder(o)}
+                        title="تعديل"
+                        className="bg-amber-100 hover:bg-amber-200 active:scale-90 text-amber-700 w-9 h-9 rounded-lg text-base font-black flex items-center justify-center transition shadow-sm">
+                        ✏️
+                      </button>
+                      <button onClick={() => deleteOrder(o)}
+                        title="حذف"
+                        className="bg-rose-100 hover:bg-rose-200 active:scale-90 text-rose-700 w-9 h-9 rounded-lg text-base font-black flex items-center justify-center transition shadow-sm">
+                        🗑
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {expanded && (
                   <OrderDetails
                     orderId={o.id}
