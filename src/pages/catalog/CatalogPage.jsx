@@ -480,16 +480,14 @@ export default function CatalogPage() {
       {showBag && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 animate-fade-in"
-          style={{ paddingBottom: activePriceId !== null ? '300px' : '0', transition: 'padding-bottom .2s' }}
           onClick={() => setShowBag(false)}
         >
           <div
             className="w-full max-w-md bg-white flex flex-col animate-slide-up"
             style={{
-              maxHeight: activePriceId !== null ? 'calc(100vh - 320px)' : '92vh',
+              maxHeight: '92vh',
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
-              transition: 'max-height .2s',
             }}
             onClick={e=>e.stopPropagation()}
           >
@@ -534,25 +532,22 @@ export default function CatalogPage() {
                       </p>
                     </div>
 
-                    {/* Price (tap to edit) */}
-                    <button
-                      onClick={() => { setActivePriceId(b.product.id); setActiveField(null) }}
-                      className={`flex flex-col items-center px-3 py-2 rounded-xl border-2 min-w-[90px] transition active:scale-95 ${
-                        isActive ? 'bg-white border-blue-500 shadow-md' :
-                        isNeg ? 'bg-white border-amber-400' :
-                        'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {isNeg && !isActive && (
-                        <span className="text-[9px] line-through text-slate-400">{fmt(b.product.sell_price)}</span>
-                      )}
-                      <span className={`text-base font-black leading-none ${
-                        isActive ? 'text-blue-700' : isNeg ? 'text-amber-700' : 'text-slate-800'
-                      }`}>
-                        {b._priceStr ?? fmt(negPrice)}
-                      </span>
-                      <span className="text-[9px] text-slate-400 mt-0.5">{cur}</span>
-                    </button>
+                    {/* Price with simple ± buttons */}
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setNegotiatedPrice(b.product.id, Math.max(0, +(negPrice - 0.5).toFixed(2)))}
+                        className="w-9 h-9 bg-rose-100 hover:bg-rose-200 active:scale-90 text-rose-600 rounded-lg text-xl font-black flex items-center justify-center leading-none transition shadow-sm">
+                        −
+                      </button>
+                      <div className={`flex flex-col items-center px-2 min-w-[70px] ${isNeg ? 'text-amber-700' : 'text-slate-800'}`}>
+                        {isNeg && <span className="text-[9px] line-through text-slate-400 leading-none">{fmt(b.product.sell_price)}</span>}
+                        <span className="text-base font-black leading-tight">{fmt(negPrice)}</span>
+                        <span className="text-[9px] text-slate-400 leading-none">{cur}</span>
+                      </div>
+                      <button onClick={() => setNegotiatedPrice(b.product.id, +(negPrice + 0.5).toFixed(2))}
+                        className="w-9 h-9 bg-emerald-100 hover:bg-emerald-200 active:scale-90 text-emerald-700 rounded-lg text-xl font-black flex items-center justify-center leading-none transition shadow-sm">
+                        +
+                      </button>
+                    </div>
 
                     {/* Remove */}
                     <button onClick={() => removeFromBag(b.product.id)}
@@ -593,31 +588,6 @@ export default function CatalogPage() {
             </div>
           </div>
 
-          {/* Price adjuster — quick +/- buttons */}
-          {activePriceId !== null && (() => {
-            const item = bag.find(b => b.product.id === activePriceId)
-            if (!item) return null
-            const cp = priceOf(item)
-            return (
-              <PriceAdjuster
-                price={cp}
-                originalPrice={item.product.sell_price}
-                cur={cur}
-                onAdjust={(delta) => {
-                  setBag(prev => prev.map(b => {
-                    if (b.product.id !== activePriceId) return b
-                    const newPrice = Math.max(0, +(cp + delta).toFixed(2))
-                    return { ...b, negotiatedPrice: newPrice, _priceStr: undefined }
-                  }))
-                }}
-                onReset={() => {
-                  setBag(prev => prev.map(b => b.product.id === activePriceId
-                    ? { ...b, negotiatedPrice: b.product.sell_price, _priceStr: undefined } : b))
-                }}
-                onClose={() => setActivePriceId(null)}
-              />
-            )
-          })()}
         </div>
       )}
 
