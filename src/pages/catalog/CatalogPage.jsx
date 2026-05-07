@@ -21,6 +21,61 @@ const NUM_LAYOUT = [
   ['+','0','.'],
 ]
 
+// ── Price Adjuster (replaces keyboard for price negotiation) ────
+function PriceAdjuster({ price, originalPrice, onAdjust, onReset, onClose, cur = 'درهم' }) {
+  const isNeg = price !== originalPrice
+  const Btn = ({ delta, label, color }) => (
+    <button onClick={(e) => { e.preventDefault(); onAdjust(delta) }}
+      className={`flex-1 py-4 rounded-2xl font-black text-lg transition active:scale-95 shadow-sm bg-white hover:shadow ${color}`}
+      style={{ border: '1px solid rgba(226,232,240,.8)' }}>
+      {label}
+    </button>
+  )
+  return (
+    <div
+      className="fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md"
+      style={{
+        background: 'linear-gradient(180deg, rgba(248,250,252,.92) 0%, rgba(241,245,249,.98) 100%)',
+        boxShadow: '0 -10px 40px rgba(15,23,42,.18)',
+        borderTop: '1px solid rgba(148,163,184,.4)',
+        paddingBottom: 'env(safe-area-inset-bottom, 12px)',
+      }}
+    >
+      <div className="flex justify-between items-center px-4 pt-3 pb-2">
+        <button onClick={onClose}
+          className="text-slate-700 font-bold px-3 py-1.5 rounded-lg bg-white shadow-sm hover:shadow active:scale-95 text-sm">
+          ✓ تم
+        </button>
+        <div className="text-center">
+          {isNeg && <div className="text-[10px] text-slate-400 line-through leading-none">{fmt(originalPrice)}</div>}
+          <div className={`text-2xl font-black leading-none ${isNeg ? 'text-amber-600' : 'text-slate-900'}`}>
+            {fmt(price)} <span className="text-xs text-slate-400 font-normal">{cur}</span>
+          </div>
+        </div>
+        {isNeg ? (
+          <button onClick={onReset}
+            className="text-amber-600 font-bold px-3 py-1.5 rounded-lg bg-white shadow-sm hover:shadow active:scale-95 text-sm">
+            ↺ افتراضي
+          </button>
+        ) : <span className="w-16" />}
+      </div>
+
+      <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+        <Btn delta={-1}    label="−1"    color="text-rose-600" />
+        <Btn delta={-0.5}  label="−0.5"  color="text-rose-500" />
+        <Btn delta={+0.5}  label="+0.5"  color="text-emerald-600" />
+        <Btn delta={+1}    label="+1"    color="text-emerald-700" />
+      </div>
+      <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+        <Btn delta={-10}   label="−10"   color="text-rose-700" />
+        <Btn delta={-5}    label="−5"    color="text-rose-600" />
+        <Btn delta={+5}    label="+5"    color="text-emerald-700" />
+        <Btn delta={+10}   label="+10"   color="text-emerald-800" />
+      </div>
+    </div>
+  )
+}
+
 function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
   const layout = mode === 'num' ? NUM_LAYOUT : AR_LAYOUT
   return (
@@ -538,15 +593,31 @@ export default function CatalogPage() {
             </div>
           </div>
 
-          {/* Virtual numeric keyboard */}
-          {activePriceId !== null && (
-            <VirtualKeyboard
-              mode="num"
-              onKey={kbInsert}
-              onBackspace={kbBackspace}
-              onClose={() => setActivePriceId(null)}
-            />
-          )}
+          {/* Price adjuster — quick +/- buttons */}
+          {activePriceId !== null && (() => {
+            const item = bag.find(b => b.product.id === activePriceId)
+            if (!item) return null
+            const cp = priceOf(item)
+            return (
+              <PriceAdjuster
+                price={cp}
+                originalPrice={item.product.sell_price}
+                cur={cur}
+                onAdjust={(delta) => {
+                  setBag(prev => prev.map(b => {
+                    if (b.product.id !== activePriceId) return b
+                    const newPrice = Math.max(0, +(cp + delta).toFixed(2))
+                    return { ...b, negotiatedPrice: newPrice, _priceStr: undefined }
+                  }))
+                }}
+                onReset={() => {
+                  setBag(prev => prev.map(b => b.product.id === activePriceId
+                    ? { ...b, negotiatedPrice: b.product.sell_price, _priceStr: undefined } : b))
+                }}
+                onClose={() => setActivePriceId(null)}
+              />
+            )
+          })()}
         </div>
       )}
 
