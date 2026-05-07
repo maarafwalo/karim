@@ -369,10 +369,14 @@ export default function CatalogPage() {
 
       {/* Bag modal */}
       {showBag && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center animate-fade-in" onClick={() => setShowBag(false)}>
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center animate-fade-in"
+          style={{ paddingBottom: activePriceId !== null ? '320px' : '0' }}
+          onClick={() => setShowBag(false)}
+        >
           <div
             className="bg-white rounded-t-2xl w-full max-w-lg flex flex-col animate-slide-up"
-            style={{ maxHeight: activePriceId !== null ? '50vh' : '85vh' }}
+            style={{ maxHeight: activePriceId !== null ? 'calc(100vh - 340px)' : '85vh' }}
             onClick={e=>e.stopPropagation()}
           >
             <div className="flex justify-between items-center p-4 border-b">
