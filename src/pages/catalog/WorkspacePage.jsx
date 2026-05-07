@@ -221,6 +221,12 @@ function CartTab({ cur, profile }) {
   }
 
   // ── Cart stage ──
+  const emptyCart = () => {
+    if (!confirm('إفراغ السلة بالكامل؟')) return
+    clearBag()
+    toast.success('🗑 تم إفراغ السلة')
+  }
+
   return (
     <div className="flex flex-col h-full">
       {editingOrder && (
@@ -230,6 +236,18 @@ function CartTab({ cur, profile }) {
             className="text-amber-700 hover:text-amber-900 text-[10px] font-bold underline">إلغاء التعديل</button>
         </div>
       )}
+      {/* Cart toolbar */}
+      <div className="bg-white border-b border-slate-100 px-3 py-2 flex items-center justify-between flex-shrink-0">
+        <div className="text-xs text-slate-500">
+          <span className="font-bold text-slate-700">{count}</span> منتج ·
+          <span className="font-black text-slate-900 mx-1">{fmt(total)}</span>
+          <span className="text-[10px]">{cur}</span>
+        </div>
+        <button onClick={emptyCart}
+          className="bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+          🗑 إفراغ
+        </button>
+      </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {items.map(b => {
           const negPrice = priceOf(b)
