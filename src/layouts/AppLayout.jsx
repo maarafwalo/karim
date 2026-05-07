@@ -173,18 +173,6 @@ export default function AppLayout() {
           ))}
         </nav>
 
-        {/* Camera indicator (admin) */}
-        {isAdmin && (
-          <button
-            onClick={() => navigate('/surveillance')}
-            className={`flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              active ? 'bg-green-500/30 text-green-200' : 'bg-white/10 text-white/50 hover:bg-white/20'
-            }`}
-          >
-            {active ? <><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" /><span>مراقبة</span></> : '📹'}
-          </button>
-        )}
-
         {/* User + sign out */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs opacity-70 hidden sm:block">{ROLE_LABELS[profile?.role]}</span>
