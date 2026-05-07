@@ -122,8 +122,54 @@ function CartTab({ cur, profile }) {
   const clearBag     = useBagStore(s => s.clear)
   const setEditingOrder = useBagStore(s => s.setEditingOrder)
 
+  const setBagCustomer = useBagStore(s => s.setCustomer)
+
   const [stage, setStage]   = useState('cart')    // 'cart' | 'checkout'
   const [sending, setSending] = useState(false)
+
+  // Inline customer picker state (loaded only when checkout opens)
+  const [allCustomers, setAllCustomers] = useState([])
+  const [pickerQ, setPickerQ]           = useState('')
+  const [showNewForm, setShowNewForm]   = useState(false)
+  const [newCust, setNewCust]           = useState({ name: '', phone: '' })
+  const [newSaving, setNewSaving]       = useState(false)
+
+  useEffect(() => {
+    if (stage !== 'checkout' || allCustomers.length) return
+    supabase.from('customers').select('id,name,phone,address,balance').order('name').then(({ data }) => {
+      if (data) setAllCustomers(data)
+    })
+  }, [stage])
+
+  const filteredCust = pickerQ
+    ? allCustomers.filter(c =>
+        (c.name || '').toLowerCase().includes(pickerQ.toLowerCase()) ||
+        (c.phone || '').includes(pickerQ))
+    : allCustomers
+
+  const pickCustomer = (c) => {
+    setBagCustomer({ name: c.name || '', phone: c.phone || '', address: c.address || '' })
+    setPickerQ('')
+  }
+
+  const clearCustomer = () => setBagCustomer({ name: '', phone: '', address: '' })
+
+  const saveNewCustomer = async () => {
+    if (!newCust.name.trim()) { toast.error('الاسم مطلوب'); return }
+    setNewSaving(true)
+    const { data, error } = await supabase.from('customers').insert({
+      name: newCust.name.trim(), phone: newCust.phone.trim(),
+    }).select().single()
+    setNewSaving(false)
+    if (error) { toast.error('فشل الحفظ'); return }
+    if (data) {
+      setAllCustomers(prev => [data, ...prev])
+      pickCustomer(data)
+      setShowNewForm(false)
+      setNewCust({ name: '', phone: '' })
+      toast.success(`✓ ${data.name} محدد للطلب`)
+    }
+  }
 
   const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
   const total   = items.reduce((s, b) => s + priceOf(b) * b.qty, 0)
@@ -224,10 +270,11 @@ function CartTab({ cur, profile }) {
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <h3 className="font-black text-slate-900">👤 الزبون</h3>
+          <h3 className="font-black text-slate-900 text-sm">👤 الزبون</h3>
 
+          {/* Selected customer summary OR fast picker */}
           {hasCustomer ? (
-            <div className="bg-white border-2 border-emerald-200 rounded-2xl p-3 shadow-sm">
+            <div className="bg-white border-2 border-emerald-300 rounded-2xl p-3 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm flex items-center justify-center flex-shrink-0">
                   {customer.name.trim().slice(0, 2)}
@@ -237,17 +284,66 @@ function CartTab({ cur, profile }) {
                   {customer.phone && <p className="text-[11px] text-slate-500 ltr">{customer.phone}</p>}
                   {customer.address && <p className="text-[11px] text-slate-500 truncate">📍 {customer.address}</p>}
                 </div>
-                <button onClick={() => { window.location.hash = 'customers' }}
-                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl flex-shrink-0">
+                <button onClick={clearCustomer}
+                  className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex-shrink-0">
                   تغيير
                 </button>
               </div>
             </div>
+          ) : showNewForm ? (
+            <div className="bg-white border-2 border-indigo-200 rounded-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-indigo-700">+ زبون جديد</span>
+                <button onClick={() => { setShowNewForm(false); setNewCust({ name: '', phone: '' }) }}
+                  className="text-slate-400 hover:text-slate-700 text-xs">✕</button>
+              </div>
+              <input autoFocus value={newCust.name} onChange={e => setNewCust(c => ({ ...c, name: e.target.value }))}
+                className="inp text-sm" placeholder="الاسم *" />
+              <input value={newCust.phone} onChange={e => setNewCust(c => ({ ...c, phone: e.target.value }))}
+                type="tel" className="inp text-sm" placeholder="الهاتف" />
+              <button onClick={saveNewCustomer} disabled={newSaving}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-black py-2 rounded-lg">
+                {newSaving ? '...' : '✔ حفظ واختيار'}
+              </button>
+            </div>
           ) : (
-            <button onClick={() => { window.location.hash = 'customers' }}
-              className="w-full bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 text-indigo-700 font-black py-6 rounded-2xl text-sm transition active:scale-[0.98]">
-              👤 اختر زبون من تبويب الزبائن
-            </button>
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="flex items-center gap-2 p-2 border-b border-slate-100">
+                <input autoFocus value={pickerQ} onChange={e => setPickerQ(e.target.value)}
+                  className="inp text-sm flex-1" placeholder="🔍 ابحث بالاسم أو الهاتف..." />
+                <button onClick={() => setShowNewForm(true)}
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs px-3 py-2 rounded-xl flex-shrink-0">
+                  + جديد
+                </button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {allCustomers.length === 0 ? (
+                  <div className="text-center text-slate-400 text-xs py-6">لا توجد زبائن — أضف واحداً</div>
+                ) : filteredCust.length === 0 ? (
+                  <div className="text-center text-slate-400 text-xs py-6">لا توجد نتائج</div>
+                ) : (
+                  filteredCust.slice(0, 50).map(c => (
+                    <button key={c.id} onClick={() => pickCustomer(c)}
+                      className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-indigo-50 active:bg-indigo-100 border-b border-slate-100 last:border-0 transition text-right">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs flex-shrink-0 ${
+                        c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {(c.name || '?').trim().slice(0, 2)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm text-slate-800 truncate">{c.name || '—'}</div>
+                        {c.phone && <div className="text-[11px] text-slate-500 ltr">{c.phone}</div>}
+                      </div>
+                      {c.balance > 0 && (
+                        <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">
+                          دين: {fmt(c.balance)}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           )}
 
           <div className="bg-slate-100 rounded-xl px-4 py-3 flex items-center justify-between">
