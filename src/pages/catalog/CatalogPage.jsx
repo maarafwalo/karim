@@ -538,7 +538,9 @@ export default function CatalogPage() {
                         −
                       </button>
                       <div className={`flex flex-col items-center px-2 min-w-[70px] ${isNeg ? 'text-amber-700' : 'text-slate-800'}`}>
-                        {isNeg && <span className="text-[9px] line-through text-slate-400 leading-none">{fmt(b.product.sell_price)}</span>}
+                        <span className={`text-[9px] leading-none ${isNeg ? 'line-through text-slate-400' : 'text-slate-400'}`}>
+                          {fmt(b.product.sell_price)}
+                        </span>
                         <span className="text-base font-black leading-tight">{fmt(negPrice)}</span>
                         <span className="text-[9px] text-slate-400 leading-none">{cur}</span>
                       </div>
