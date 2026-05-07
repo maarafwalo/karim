@@ -237,6 +237,9 @@ export default function CatalogPage() {
   const [pickerOpen, setPickerOpen]       = useState(false)
   const [pickerQ, setPickerQ]             = useState('')
 
+  // Category sheet
+  const [catSheetOpen, setCatSheetOpen]   = useState(false)
+
   // Open order modal when workspace's cart sends us here with ?checkout=1
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -501,23 +504,55 @@ export default function CatalogPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
-      {/* Search + Category bar */}
+      {/* Search + Category */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
-        <div className="p-2">
+        <div className="p-2 flex gap-2">
           <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-            className="inp" placeholder="🔍 ابحث عن منتج..." />
-        </div>
-        <div className="flex gap-1 overflow-x-auto px-2 pb-2">
-          {categories.map(c => (
-            <button key={c.name} onClick={() => setActiveCat(c.name)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-all ${
-                activeCat === c.name ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}>
-              <span>{c.emoji}</span><span>{c.name}</span>
-            </button>
-          ))}
+            className="inp flex-1" placeholder="🔍 ابحث عن منتج..." />
+          <button onClick={() => setCatSheetOpen(true)}
+            className="bg-primary hover:bg-primary-dark text-white font-bold px-3 rounded-xl text-sm flex items-center gap-1.5 flex-shrink-0 transition active:scale-95"
+            title="الأقسام">
+            {(() => {
+              const cur = categories.find(c => c.name === activeCat) || categories[0]
+              return <><span>{cur?.emoji || '📂'}</span><span className="max-w-[80px] truncate">{cur?.name || 'الأقسام'}</span><span className="text-[10px]">▾</span></>
+            })()}
+          </button>
         </div>
       </div>
+
+      {/* Category sheet */}
+      {catSheetOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3 animate-fade-in"
+          onClick={() => setCatSheetOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-black text-base text-slate-900">📂 اختر القسم</h2>
+              <button onClick={() => setCatSheetOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-lg leading-none">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="grid grid-cols-3 gap-2">
+                {categories.map(c => {
+                  const active = activeCat === c.name
+                  return (
+                    <button key={c.name}
+                      onClick={() => { setActiveCat(c.name); setCatSheetOpen(false) }}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-2xl text-xs font-bold transition active:scale-95 ${
+                        active
+                          ? 'bg-primary text-white shadow-md'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                      <span className="text-2xl leading-none">{c.emoji}</span>
+                      <span className="text-[11px] leading-tight text-center">{c.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Products grid */}
       <div className="flex-1 overflow-y-auto p-2 pb-24">
