@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { fmt, fmtDate } from '../../lib/utils.js'
+import ExpensesPage from '../expenses/ExpensesPage.jsx'
 import toast from 'react-hot-toast'
 
 export default function DebtPage() {
@@ -240,12 +241,13 @@ export default function DebtPage() {
     <div className="flex flex-col h-full font-arabic" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 bg-white border-b flex-shrink-0 flex-wrap gap-y-2">
-        <h1 className="font-black text-lg">⚖️ الديون</h1>
+        <h1 className="font-black text-lg">💼 محاسبة</h1>
         <div className="flex gap-1 flex-wrap">
           {[
             { id:'customers', label:'ديون الزبائن',   badge: customers.length,    color:'bg-danger'     },
             { id:'suppliers', label:'ديون الموردين',  badge: supplierDebts.length, color:'bg-orange-500' },
             { id:'employees', label:'مستحقات الموظفين', badge: employeeDebts.length, color:'bg-purple-500' },
+            { id:'expenses',  label:'مصاريف',         badge: 0,                    color:'bg-emerald-500' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 ${tab===t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}>
@@ -659,6 +661,13 @@ export default function DebtPage() {
               })()}
             </div>
           </>
+        )}
+
+        {/* ── EXPENSES (embedded) ── */}
+        {tab === 'expenses' && (
+          <div className="flex-1 overflow-hidden">
+            <ExpensesPage />
+          </div>
         )}
       </div>
     </div>
