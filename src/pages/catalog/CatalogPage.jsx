@@ -23,18 +23,18 @@ const NUM_LAYOUT = [
 function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
   const layout = mode === 'num' ? NUM_LAYOUT : AR_LAYOUT
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 z-[60] p-2 border-t-2 border-gray-700 shadow-2xl" onMouseDown={e => e.preventDefault()}>
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-900 z-[60] p-2 border-t-2 border-gray-700 shadow-2xl font-arabic" onMouseDown={e => e.preventDefault()}>
       <div className="flex justify-between items-center mb-2">
-        <button onClick={onBackspace} className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg text-sm">⌫ مسح</button>
-        <span className="text-white text-xs">{mode === 'num' ? 'أرقام' : 'عربي'}</span>
-        <button onClick={onClose} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg text-sm">✕ إغلاق</button>
+        <button onMouseDown={e => { e.preventDefault(); onBackspace() }} className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg text-sm">⌫ مسح</button>
+        <span className="text-white text-xs font-bold">{mode === 'num' ? 'أرقام' : 'عربي'}</span>
+        <button onMouseDown={e => { e.preventDefault(); onClose() }} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg text-sm">✕ إغلاق</button>
       </div>
       <div className="space-y-1">
         {layout.map((row, ri) => (
           <div key={ri} className={`flex gap-1 justify-center ${mode === 'num' ? 'max-w-xs mx-auto' : ''}`}>
             {row.map((k, ki) => (
               <button key={ki} onMouseDown={e => { e.preventDefault(); onKey(k) }}
-                className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md flex-1 py-3 min-w-[28px] text-base shadow">
+                className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-black rounded-md flex-1 py-3 min-w-[28px] text-xl shadow font-arabic">
                 {k}
               </button>
             ))}
@@ -42,7 +42,7 @@ function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
         ))}
         <div className="flex gap-1 justify-center">
           <button onMouseDown={e => { e.preventDefault(); onKey(' ') }}
-            className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md py-3 px-12 text-base shadow">
+            className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md py-3 px-12 text-base shadow font-arabic">
             مسافة
           </button>
         </div>
@@ -382,23 +382,31 @@ export default function CatalogPage() {
                 <label className="text-sm font-bold block mb-1">الاسم *</label>
                 <input value={customer.name}
                   onFocus={() => setActiveField('name')}
-                  onChange={e=>setCustomer(c=>({...c,name:e.target.value}))}
-                  className={`inp ${activeField === 'name' ? 'ring-2 ring-primary' : ''}`} placeholder="محمد أحمد" />
+                  onClick={() => setActiveField('name')}
+                  onChange={()=>{}}
+                  readOnly
+                  inputMode="none"
+                  className={`inp font-arabic cursor-pointer ${activeField === 'name' ? 'ring-2 ring-primary' : ''}`} placeholder="محمد أحمد" />
               </div>
               <div>
                 <label className="text-sm font-bold block mb-1">الهاتف *</label>
                 <input value={customer.phone}
                   onFocus={() => setActiveField('phone')}
-                  onChange={e=>setCustomer(c=>({...c,phone:e.target.value}))}
-                  inputMode="tel"
-                  className={`inp ${activeField === 'phone' ? 'ring-2 ring-primary' : ''}`} placeholder="0600000000" />
+                  onClick={() => setActiveField('phone')}
+                  onChange={()=>{}}
+                  readOnly
+                  inputMode="none"
+                  className={`inp cursor-pointer ${activeField === 'phone' ? 'ring-2 ring-primary' : ''}`} placeholder="0600000000" />
               </div>
               <div>
                 <label className="text-sm font-bold block mb-1">العنوان</label>
                 <input value={customer.address}
                   onFocus={() => setActiveField('address')}
-                  onChange={e=>setCustomer(c=>({...c,address:e.target.value}))}
-                  className={`inp ${activeField === 'address' ? 'ring-2 ring-primary' : ''}`} placeholder="الحي، المدينة" />
+                  onClick={() => setActiveField('address')}
+                  onChange={()=>{}}
+                  readOnly
+                  inputMode="none"
+                  className={`inp font-arabic cursor-pointer ${activeField === 'address' ? 'ring-2 ring-primary' : ''}`} placeholder="الحي، المدينة" />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
