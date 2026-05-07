@@ -13,7 +13,7 @@ const HIDE_CATALOG = import.meta.env.VITE_HIDE_CATALOG === 'true'
 const NAV = [
   { path: '/pos',             label: 'POS',            icon: '🛒', roles: ['admin','cashier','store_manager'] },
   { path: '/customers',       label: 'الزبائن',        icon: '👤', roles: ['admin','cashier','delivery','store_manager'] },
-  ...(!HIDE_CATALOG ? [{ path: '/catalog', label: 'كتالوج', icon: '📋', roles: ['admin','vendor'] }] : []),
+  ...(!HIDE_CATALOG ? [{ path: '/catalog', label: 'كتالوج', icon: '📋', roles: ['admin'] }] : []),
   { path: '/workspace',       label: 'ساحة',           icon: '🧰', roles: ['admin','vendor'] },
   { path: '/expenses',        label: 'مصاريف',         icon: '💸', roles: ['admin','cashier','store_manager'] },
   { path: '/debt',            label: 'الديون',         icon: '⚖️', roles: ['admin','cashier','delivery','store_manager'] },

@@ -136,9 +136,9 @@ function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
 }
 
 // ── Product Card ──────────────────────────────────────────────
-const PRICE_STEP = 0.50  // dirham step for negotiation
+export const PRICE_STEP = 0.50  // dirham step for negotiation
 
-function ProductCard({ p, inBag, cur, onAdd, onInc, onDec, onPriceChange }) {
+export function ProductCard({ p, inBag, cur, onAdd, onInc, onDec, onPriceChange }) {
   const [imgError, setImgError] = useState(false)
   const negPrice    = inBag ? (typeof inBag.negotiatedPrice === 'number' ? inBag.negotiatedPrice : p.sell_price) : p.sell_price
   const isNeg       = inBag && negPrice !== p.sell_price

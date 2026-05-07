@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
+import { useProductsStore } from '../../stores/productsStore.js'
 import { useBagStore } from '../../stores/bagStore.js'
 import { fmt, fmtDate, buildWhatsApp, generateOrderNumber } from '../../lib/utils.js'
+import { ProductCard } from './CatalogPage.jsx'
 import toast from 'react-hot-toast'
 
 const STATUS_LABEL = {
@@ -13,6 +15,98 @@ const STATUS_LABEL = {
   rejected:  { txt: 'مرفوض',   cls: 'bg-rose-100 text-rose-700' },
   delivered: { txt: 'مسلَّم',  cls: 'bg-slate-100 text-slate-700' },
   cancelled: { txt: 'ملغى',    cls: 'bg-slate-100 text-slate-500' },
+}
+
+// ── Tab 0: المنتجات (catalog browser) ──────────────────────────
+function BrowseTab({ cur }) {
+  const { categories, filteredProducts, activeCat, setActiveCat, searchQ, setSearchQ, loading } = useProductsStore()
+  const items       = useBagStore(s => s.items)
+  const addItem     = useBagStore(s => s.addItem)
+  const decItem     = useBagStore(s => s.decItem)
+  const setNegPrice = useBagStore(s => s.setNegPrice)
+  const [catSheetOpen, setCatSheetOpen] = useState(false)
+  const products = filteredProducts()
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="bg-white border-b border-slate-100 flex-shrink-0 p-2 flex gap-2">
+        <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
+          className="inp flex-1" placeholder="🔍 ابحث عن منتج..." />
+        <button onClick={() => setCatSheetOpen(true)}
+          className="bg-primary hover:bg-primary-dark text-white font-bold px-3 rounded-xl text-sm flex items-center gap-1.5 flex-shrink-0 transition active:scale-95">
+          {(() => {
+            const c = categories.find(c => c.name === activeCat) || categories[0]
+            return <><span>{c?.emoji || '📂'}</span><span className="max-w-[80px] truncate">{c?.name || 'الأقسام'}</span><span className="text-[10px]">▾</span></>
+          })()}
+        </button>
+      </div>
+
+      {/* Category sheet */}
+      {catSheetOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3"
+          onClick={() => setCatSheetOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-black text-base text-slate-900">📂 اختر القسم</h2>
+              <button onClick={() => setCatSheetOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-lg leading-none">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="grid grid-cols-3 gap-2">
+                {categories.map(c => {
+                  const active = activeCat === c.name
+                  return (
+                    <button key={c.name}
+                      onClick={() => { setActiveCat(c.name); setCatSheetOpen(false) }}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-2xl text-xs font-bold transition active:scale-95 ${
+                        active
+                          ? 'bg-primary text-white shadow-md'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                      <span className="text-2xl leading-none">{c.emoji}</span>
+                      <span className="text-[11px] leading-tight text-center">{c.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Products grid */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {loading ? (
+          <div className="flex items-center justify-center h-full text-slate-400 text-sm gap-2">
+            <span className="animate-spin text-xl">⏳</span><span>جاري التحميل...</span>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+            <span className="text-4xl">🔍</span><span className="text-sm">لا توجد منتجات</span>
+          </div>
+        ) : (
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {products.map(p => {
+              const inBag = items.find(b => b.product.id === p.id)
+              return (
+                <ProductCard
+                  key={p.id}
+                  p={p}
+                  inBag={inBag}
+                  cur={cur}
+                  onAdd={() => addItem(p)}
+                  onInc={() => addItem(p)}
+                  onDec={() => decItem(p.id)}
+                  onPriceChange={(price) => setNegPrice(p.id, price)}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Tab 1: السلة (live bag from store + inline checkout) ──────
@@ -136,7 +230,7 @@ function CartTab({ cur, profile }) {
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="text-6xl mb-3">🛍</div>
         <p className="text-slate-600 font-bold mb-4">سلتك فارغة</p>
-        <button onClick={() => navigate('/catalog')}
+        <button onClick={() => { window.location.hash = 'browse' }}
           className="bg-primary hover:bg-primary-dark text-white font-black px-6 py-3 rounded-2xl shadow-lg transition active:scale-95">
           📋 تصفح الكتالوج
         </button>
@@ -277,7 +371,7 @@ function CartTab({ cur, profile }) {
       </div>
 
       <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/catalog')}
+        <button onClick={() => { window.location.hash = 'browse' }}
           className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-2xl transition active:scale-95">
           + إضافة
         </button>
@@ -914,23 +1008,25 @@ export default function WorkspacePage() {
   const cur = settings?.currency_symbol || settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
 
+  const VALID_TABS = ['browse', 'cart', 'orders', 'customers', 'debts']
   const [tab, setTab] = useState(() => {
     const hash = window.location.hash.replace('#', '')
-    if (hash && ['cart', 'orders', 'customers', 'debts'].includes(hash)) return hash
-    return bagCount > 0 ? 'cart' : 'orders'
+    if (hash && VALID_TABS.includes(hash)) return hash
+    return bagCount > 0 ? 'cart' : 'browse'
   })
 
   // React to hash changes (e.g. after save, we navigate to #orders)
   useEffect(() => {
     const onHash = () => {
       const h = window.location.hash.replace('#', '')
-      if (['cart', 'orders', 'customers', 'debts'].includes(h)) setTab(h)
+      if (VALID_TABS.includes(h)) setTab(h)
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   const TABS = [
+    { key: 'browse',    label: 'منتجات',  icon: '📋' },
     { key: 'cart',      label: 'السلة',   icon: '🛍',  badge: bagCount || null },
     { key: 'orders',    label: 'طلبات',   icon: '🧾' },
     { key: 'customers', label: 'الزبائن', icon: '👤' },
@@ -964,6 +1060,7 @@ export default function WorkspacePage() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
+        {tab === 'browse'    && <BrowseTab cur={cur} />}
         {tab === 'cart'      && <CartTab cur={cur} profile={profile} />}
         {tab === 'orders'    && <OrdersTab cur={cur} profile={profile} />}
         {tab === 'customers' && <CustomersTab cur={cur} />}
