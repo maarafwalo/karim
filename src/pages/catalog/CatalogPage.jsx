@@ -532,9 +532,9 @@ export default function CatalogPage() {
                       </p>
                     </div>
 
-                    {/* Price with simple ± buttons */}
+                    {/* Price with simple ± buttons (step 0.10) */}
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setNegotiatedPrice(b.product.id, Math.max(0, +(negPrice - 0.5).toFixed(2)))}
+                      <button onClick={() => setNegotiatedPrice(b.product.id, Math.max(0, +(negPrice - 0.10).toFixed(2)))}
                         className="w-9 h-9 bg-rose-100 hover:bg-rose-200 active:scale-90 text-rose-600 rounded-lg text-xl font-black flex items-center justify-center leading-none transition shadow-sm">
                         −
                       </button>
@@ -543,7 +543,7 @@ export default function CatalogPage() {
                         <span className="text-base font-black leading-tight">{fmt(negPrice)}</span>
                         <span className="text-[9px] text-slate-400 leading-none">{cur}</span>
                       </div>
-                      <button onClick={() => setNegotiatedPrice(b.product.id, +(negPrice + 0.5).toFixed(2))}
+                      <button onClick={() => setNegotiatedPrice(b.product.id, +(negPrice + 0.10).toFixed(2))}
                         className="w-9 h-9 bg-emerald-100 hover:bg-emerald-200 active:scale-90 text-emerald-700 rounded-lg text-xl font-black flex items-center justify-center leading-none transition shadow-sm">
                         +
                       </button>
