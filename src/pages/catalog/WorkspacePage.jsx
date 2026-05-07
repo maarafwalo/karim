@@ -488,13 +488,219 @@ function OrdersTab({ cur, profile }) {
   )
 }
 
-// ── Tab 3: الزبائن ─────────────────────────────────────────────
+// ── Customer card (one unified entity) ─────────────────────────
+function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
+  const [editing, setEditing]   = useState(false)
+  const [draft, setDraft]       = useState({ name: c.name, phone: c.phone || '', price_tier: c.price_tier || 'retail' })
+  const [history, setHistory]   = useState({ invoices: [], payments: [], loaded: false })
+  const [payAmt, setPayAmt]     = useState('')
+  const [working, setWorking]   = useState(false)
+
+  // Lazy-load invoices + payments only when expanded
+  useEffect(() => {
+    if (!expanded || history.loaded) return
+    let cancelled = false
+    Promise.all([
+      supabase.from('pos_invoices').select('order_number, total, payment_method, payment_label, created_at')
+        .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('debt_payments').select('amount, created_at')
+        .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
+    ]).then(([inv, pay]) => {
+      if (cancelled) return
+      setHistory({ invoices: inv.data || [], payments: pay.data || [], loaded: true })
+    })
+    return () => { cancelled = true }
+  }, [expanded, c.id])
+
+  const initials = (c.name || '?').trim().slice(0, 2)
+
+  const saveEdit = async () => {
+    if (!draft.name.trim()) { toast.error('الاسم مطلوب'); return }
+    setWorking(true)
+    const { data, error } = await supabase.from('customers').update({
+      name: draft.name.trim(),
+      phone: draft.phone.trim(),
+      price_tier: draft.price_tier,
+    }).eq('id', c.id).select().single()
+    setWorking(false)
+    if (error) { toast.error('خطأ في الحفظ'); return }
+    toast.success('تم الحفظ')
+    setEditing(false)
+    onChange(data)
+  }
+
+  const recordPayment = async () => {
+    const amount = parseFloat(payAmt)
+    if (!amount || amount <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return }
+    setWorking(true)
+    const { error } = await supabase.from('debt_payments').insert({ customer_id: c.id, amount })
+    if (error) { setWorking(false); toast.error('فشل التسجيل'); return }
+    const newBal = Math.max(0, (c.balance || 0) - amount)
+    const { data: upd } = await supabase.from('customers').update({ balance: newBal }).eq('id', c.id).select().single()
+    setWorking(false)
+    setPayAmt('')
+    setHistory(h => ({ ...h, loaded: false }))
+    toast.success(`✔ تم تسجيل ${fmt(amount)} ${cur}`)
+    if (upd) onChange(upd)
+  }
+
+  const toggleTier = async () => {
+    const next = c.price_tier === 'wholesale' ? 'retail' : 'wholesale'
+    const { data } = await supabase.from('customers').update({ price_tier: next }).eq('id', c.id).select().single()
+    if (data) onChange(data)
+  }
+
+  return (
+    <div className={`bg-white border-2 rounded-2xl shadow-sm overflow-hidden transition ${
+      expanded ? 'border-primary' : c.balance > 0 ? 'border-rose-200' : 'border-slate-200'
+    }`}>
+      {/* Header — always visible */}
+      <button onClick={onToggle} className="w-full p-3 flex items-center gap-3 hover:bg-slate-50 transition">
+        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
+          c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
+        }`}>
+          {initials}
+        </div>
+        <div className="flex-1 text-right min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="font-black text-sm text-slate-900 truncate">{c.name}</p>
+            {c.price_tier === 'wholesale' && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">جملة</span>}
+            {c.loyalty_pts > 0 && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">⭐ {c.loyalty_pts}</span>}
+          </div>
+          {c.phone && <p className="text-[11px] text-slate-500 mt-0.5 ltr">{c.phone}</p>}
+        </div>
+        <div className="text-left flex-shrink-0">
+          {c.balance > 0 ? (
+            <div className="font-black text-sm text-rose-600">{fmt(c.balance)} <span className="text-[10px] font-normal text-slate-400">{cur}</span></div>
+          ) : (
+            <div className="text-[10px] text-emerald-600 font-bold">✓ مسدّد</div>
+          )}
+          <div className="text-[10px] text-slate-400">{expanded ? '▲' : '▼'}</div>
+        </div>
+      </button>
+
+      {/* Expanded panel */}
+      {expanded && (
+        <div className="border-t border-slate-100 p-3 space-y-3 bg-slate-50/40">
+          {/* Quick actions row */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {c.phone && (
+              <a href={buildWhatsApp(c.phone, `مرحباً ${c.name}`)} target="_blank" rel="noreferrer"
+                className="flex flex-col items-center gap-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-xl transition">
+                <span className="text-base leading-none">📱</span>
+                <span className="text-[10px] font-bold">واتساب</span>
+              </a>
+            )}
+            {c.phone && (
+              <a href={`tel:${c.phone}`}
+                className="flex flex-col items-center gap-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 rounded-xl transition">
+                <span className="text-base leading-none">📞</span>
+                <span className="text-[10px] font-bold">اتصال</span>
+              </a>
+            )}
+            <button onClick={() => setEditing(e => !e)}
+              className="flex flex-col items-center gap-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 rounded-xl transition">
+              <span className="text-base leading-none">✏</span>
+              <span className="text-[10px] font-bold">{editing ? 'إلغاء' : 'تعديل'}</span>
+            </button>
+            <button onClick={toggleTier}
+              className="flex flex-col items-center gap-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-xl transition">
+              <span className="text-base leading-none">{c.price_tier === 'wholesale' ? '🏷' : '🛒'}</span>
+              <span className="text-[10px] font-bold">{c.price_tier === 'wholesale' ? 'تجزئة' : 'جملة'}</span>
+            </button>
+          </div>
+
+          {/* Inline edit */}
+          {editing && (
+            <div className="bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+              <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                className="inp text-sm" placeholder="الاسم *" />
+              <input value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
+                className="inp text-sm" placeholder="الهاتف" />
+              <select value={draft.price_tier} onChange={e => setDraft(d => ({ ...d, price_tier: e.target.value }))}
+                className="inp text-sm">
+                <option value="retail">سعر التجزئة</option>
+                <option value="wholesale">سعر الجملة</option>
+              </select>
+              <button onClick={saveEdit} disabled={working}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-black py-2 rounded-lg">
+                {working ? '...' : '✔ حفظ'}
+              </button>
+            </div>
+          )}
+
+          {/* Pay debt */}
+          {c.balance > 0 && (
+            <div className="bg-white p-3 rounded-xl border border-rose-200">
+              <div className="text-xs text-slate-500 mb-1.5">💵 تسجيل دفعة</div>
+              <div className="flex gap-2">
+                <input type="number" value={payAmt} onChange={e => setPayAmt(e.target.value)}
+                  className="inp text-sm flex-1" placeholder={`المبلغ (${cur})`} />
+                <button onClick={recordPayment} disabled={working}
+                  className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-black px-3 rounded-lg">
+                  ✔
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* History */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="text-[10px] font-black text-slate-500 px-2 py-1 bg-slate-50 border-b border-slate-100">🧾 الفواتير</div>
+              <div className="max-h-32 overflow-y-auto">
+                {!history.loaded ? (
+                  <div className="text-center text-[10px] text-slate-400 py-2">...</div>
+                ) : history.invoices.length === 0 ? (
+                  <div className="text-center text-[10px] text-slate-400 py-2">لا شيء</div>
+                ) : history.invoices.map((inv, i) => (
+                  <div key={i} className="px-2 py-1 border-b border-slate-50 last:border-0">
+                    <div className="font-bold text-[10px] text-slate-700 truncate">{inv.order_number}</div>
+                    <div className="flex justify-between text-[9px]">
+                      <span className="text-slate-400">{fmtDate(inv.created_at)}</span>
+                      <span className="font-black text-primary">{fmt(inv.total)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="text-[10px] font-black text-slate-500 px-2 py-1 bg-slate-50 border-b border-slate-100">💵 السداد</div>
+              <div className="max-h-32 overflow-y-auto">
+                {!history.loaded ? (
+                  <div className="text-center text-[10px] text-slate-400 py-2">...</div>
+                ) : history.payments.length === 0 ? (
+                  <div className="text-center text-[10px] text-slate-400 py-2">لا شيء</div>
+                ) : history.payments.map((p, i) => (
+                  <div key={i} className="px-2 py-1 border-b border-slate-50 last:border-0 flex justify-between text-[10px]">
+                    <span className="text-slate-400">{fmtDate(p.created_at)}</span>
+                    <span className="font-black text-emerald-600">{fmt(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={onDelete}
+            className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2 rounded-xl transition">
+            🗑 حذف الزبون
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Tab 3: الزبائن (CRM-style unified cards) ──────────────────
 function CustomersTab({ cur }) {
   const [customers, setCustomers] = useState([])
   const [search, setSearch]       = useState('')
   const [loading, setLoading]     = useState(false)
   const [showAdd, setShowAdd]     = useState(false)
-  const [form, setForm]           = useState({ name:'', phone:'', price_tier:'retail' })
+  const [form, setForm]           = useState({ name: '', phone: '', price_tier: 'retail' })
+  const [filter, setFilter]       = useState('all')   // all | debt | wholesale | retail
+  const [sort, setSort]           = useState('name')  // name | debt | recent
+  const [expandedId, setExpandedId] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -505,15 +711,18 @@ function CustomersTab({ cur }) {
   useEffect(() => { load() }, [])
 
   const save = async () => {
-    if (!form.name.trim()) { toast.error('يرجى إدخال الاسم'); return }
-    const { error } = await supabase.from('customers').insert({
+    if (!form.name.trim()) { toast.error('الاسم مطلوب'); return }
+    const { data, error } = await supabase.from('customers').insert({
       name: form.name.trim(), phone: form.phone.trim(), price_tier: form.price_tier,
-    })
+    }).select().single()
     if (error) { toast.error('خطأ في الحفظ'); return }
     toast.success('تم إضافة الزبون')
-    setForm({ name:'', phone:'', price_tier:'retail' })
+    setForm({ name: '', phone: '', price_tier: 'retail' })
     setShowAdd(false)
-    load()
+    if (data) {
+      setCustomers(prev => [data, ...prev])
+      setExpandedId(data.id)
+    }
   }
 
   const del = async (id) => {
@@ -522,57 +731,118 @@ function CustomersTab({ cur }) {
     setCustomers(c => c.filter(x => x.id !== id))
   }
 
-  const filtered = customers.filter(c =>
-    !search || c.name?.includes(search) || c.phone?.includes(search))
+  const updateOne = (updated) => {
+    setCustomers(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+  }
+
+  const filtered = useMemo(() => {
+    let list = customers.filter(c =>
+      !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)
+    )
+    if (filter === 'debt')      list = list.filter(c => (c.balance || 0) > 0)
+    if (filter === 'wholesale') list = list.filter(c => c.price_tier === 'wholesale')
+    if (filter === 'retail')    list = list.filter(c => c.price_tier !== 'wholesale')
+
+    if (sort === 'debt')   list = [...list].sort((a, b) => (b.balance || 0) - (a.balance || 0))
+    if (sort === 'recent') list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    if (sort === 'name')   list = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    return list
+  }, [customers, search, filter, sort])
+
+  const stats = useMemo(() => {
+    const totalDebt = customers.reduce((s, c) => s + (c.balance || 0), 0)
+    const debtors   = customers.filter(c => (c.balance || 0) > 0).length
+    return { totalDebt, debtors, total: customers.length }
+  }, [customers])
 
   return (
     <div className="flex flex-col h-full">
-      <div className="bg-white border-b border-slate-100 px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2">
+      {/* Stats + search */}
+      <div className="bg-white border-b border-slate-100 px-3 pt-3 pb-2 flex-shrink-0">
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="bg-indigo-50 rounded-xl px-2 py-1.5 text-center">
+            <div className="text-base font-black text-indigo-700 leading-none">{stats.total}</div>
+            <div className="text-[9px] text-indigo-600 font-bold mt-0.5">زبون</div>
+          </div>
+          <div className="bg-rose-50 rounded-xl px-2 py-1.5 text-center">
+            <div className="text-base font-black text-rose-700 leading-none">{stats.debtors}</div>
+            <div className="text-[9px] text-rose-600 font-bold mt-0.5">مديون</div>
+          </div>
+          <div className="bg-emerald-50 rounded-xl px-2 py-1.5 text-center">
+            <div className="text-base font-black text-emerald-700 leading-none truncate">{fmt(stats.totalDebt)}</div>
+            <div className="text-[9px] text-emerald-600 font-bold mt-0.5">إجمالي الديون</div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
           <input value={search} onChange={e => setSearch(e.target.value)}
-            className="inp text-sm flex-1" placeholder="🔍 بحث بالاسم أو الهاتف..." />
+            className="inp text-sm flex-1" placeholder="🔍 الاسم، الهاتف..." />
           <button onClick={() => setShowAdd(s => !s)}
-            className="bg-primary text-white text-xs font-black px-3 py-2 rounded-lg flex-shrink-0">
+            className="bg-primary hover:bg-primary-dark text-white text-xs font-black px-3 py-2 rounded-xl flex-shrink-0">
             {showAdd ? '✕' : '+ جديد'}
           </button>
         </div>
+
+        {/* Filter chips */}
+        <div className="flex items-center gap-1.5 mt-2 overflow-x-auto">
+          {[
+            { key: 'all',       lbl: `الكل (${stats.total})` },
+            { key: 'debt',      lbl: `مديون (${stats.debtors})` },
+            { key: 'wholesale', lbl: 'جملة' },
+            { key: 'retail',    lbl: 'تجزئة' },
+          ].map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition flex-shrink-0 ${
+                filter === f.key ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}>
+              {f.lbl}
+            </button>
+          ))}
+          <span className="text-[10px] text-slate-300 mx-1">·</span>
+          <select value={sort} onChange={e => setSort(e.target.value)}
+            className="text-[10px] font-bold bg-slate-100 rounded-lg px-2 py-1 border-0 focus:outline-none">
+            <option value="name">أبجدي</option>
+            <option value="debt">حسب الدين</option>
+            <option value="recent">الأحدث</option>
+          </select>
+        </div>
+
         {showAdd && (
-          <div className="space-y-2 p-3 bg-slate-50 rounded-xl">
+          <div className="mt-2 p-3 bg-slate-50 rounded-xl space-y-2">
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               className="inp text-sm" placeholder="الاسم *" />
             <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className="inp text-sm" placeholder="الهاتف" />
+              className="inp text-sm" placeholder="الهاتف" type="tel" />
             <select value={form.price_tier} onChange={e => setForm(f => ({ ...f, price_tier: e.target.value }))}
               className="inp text-sm">
               <option value="retail">سعر التجزئة</option>
               <option value="wholesale">سعر الجملة</option>
             </select>
-            <button onClick={save} className="w-full bg-primary text-white text-xs font-black py-2 rounded-lg">حفظ</button>
+            <button onClick={save} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black py-2 rounded-lg">✔ حفظ</button>
           </div>
         )}
       </div>
+
+      {/* Cards */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
         {loading ? (
           <div className="text-center text-slate-400 py-6 text-sm">جاري التحميل...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center text-slate-400 py-6 text-sm">لا توجد نتائج</div>
+          <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-sm">
+            <span className="text-4xl mb-2">👤</span>
+            <span>لا توجد نتائج</span>
+          </div>
         ) : (
           filtered.map(c => (
-            <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-slate-900 truncate">{c.name}</p>
-                {c.phone && (
-                  <a href={buildWhatsApp(c.phone, `مرحباً ${c.name}`)} target="_blank" rel="noreferrer"
-                    className="text-[11px] text-emerald-600 font-bold">📱 {c.phone}</a>
-                )}
-                <div className="flex gap-1 mt-1 flex-wrap">
-                  {c.balance > 0 && <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold">دين: {fmt(c.balance)}</span>}
-                  {c.loyalty_pts > 0 && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">⭐ {c.loyalty_pts}</span>}
-                  {c.price_tier === 'wholesale' && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">جملة</span>}
-                </div>
-              </div>
-              <button onClick={() => del(c.id)} className="text-rose-400 hover:text-rose-600 text-sm">✕</button>
-            </div>
+            <CustomerCard
+              key={c.id}
+              c={c}
+              cur={cur}
+              expanded={expandedId === c.id}
+              onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+              onChange={updateOne}
+              onDelete={() => del(c.id)}
+            />
           ))
         )}
       </div>
