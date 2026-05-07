@@ -646,7 +646,7 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
     Promise.all([
       supabase.from('pos_invoices').select('order_number, total, payment_method, payment_label, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('debt_payments').select('amount, created_at')
+      (supabaseAdmin || supabase).from('debt_payments').select('amount, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
     ]).then(([inv, pay]) => {
       if (cancelled) return
@@ -660,7 +660,7 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
   const saveEdit = async () => {
     if (!draft.name.trim()) { toast.error('الاسم مطلوب'); return }
     setWorking(true)
-    const { data, error } = await supabase.from('customers').update({
+    const { data, error } = await (supabaseAdmin || supabase).from('customers').update({
       name: draft.name.trim(),
       phone: draft.phone.trim(),
     }).eq('id', c.id).select().single()
@@ -675,10 +675,10 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
     const amount = parseFloat(payAmt)
     if (!amount || amount <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return }
     setWorking(true)
-    const { error } = await supabase.from('debt_payments').insert({ customer_id: c.id, amount })
+    const { error } = await (supabaseAdmin || supabase).from('debt_payments').insert({ customer_id: c.id, amount })
     if (error) { setWorking(false); toast.error('فشل التسجيل'); return }
     const newBal = Math.max(0, (c.balance || 0) - amount)
-    const { data: upd } = await supabase.from('customers').update({ balance: newBal }).eq('id', c.id).select().single()
+    const { data: upd } = await (supabaseAdmin || supabase).from('customers').update({ balance: newBal }).eq('id', c.id).select().single()
     setWorking(false)
     setPayAmt('')
     setHistory(h => ({ ...h, loaded: false }))
@@ -839,7 +839,7 @@ function CustomersTab({ cur, profile }) {
 
   const load = async () => {
     setLoading(true)
-    const { data } = await supabase.from('customers').select('*').order('name')
+    const { data } = await (supabaseAdmin || supabase).from('customers').select('*').order('name')
     setCustomers(data || [])
     setLoading(false)
   }
@@ -847,7 +847,7 @@ function CustomersTab({ cur, profile }) {
 
   const save = async () => {
     if (!form.name.trim()) { toast.error('الاسم مطلوب'); return }
-    const { data, error } = await supabase.from('customers').insert({
+    const { data, error } = await (supabaseAdmin || supabase).from('customers').insert({
       name: form.name.trim(), phone: form.phone.trim(),
     }).select().single()
     if (error) { toast.error('خطأ في الحفظ'); return }
@@ -868,7 +868,7 @@ function CustomersTab({ cur, profile }) {
 
   const del = async (id) => {
     if (!confirm('حذف هذا الزبون؟')) return
-    await supabase.from('customers').delete().eq('id', id)
+    await (supabaseAdmin || supabase).from('customers').delete().eq('id', id)
     setCustomers(c => c.filter(x => x.id !== id))
   }
 
@@ -1025,7 +1025,7 @@ function DebtsTab({ cur }) {
 
   const load = async () => {
     setLoading(true)
-    const { data } = await supabase.from('customers').select('*').gt('balance', 0).order('balance', { ascending: false })
+    const { data } = await (supabaseAdmin || supabase).from('customers').select('*').gt('balance', 0).order('balance', { ascending: false })
     setCustomers(data || [])
     setLoading(false)
   }
@@ -1034,9 +1034,9 @@ function DebtsTab({ cur }) {
   const recordPayment = async () => {
     const amount = parseFloat(payAmt)
     if (!selected || isNaN(amount) || amount <= 0) return
-    const { error } = await supabase.from('debt_payments').insert({ customer_id: selected.id, amount })
+    const { error } = await (supabaseAdmin || supabase).from('debt_payments').insert({ customer_id: selected.id, amount })
     if (error) { toast.error('خطأ'); return }
-    await supabase.from('customers').update({ balance: Math.max(0, (selected.balance || 0) - amount) }).eq('id', selected.id)
+    await (supabaseAdmin || supabase).from('customers').update({ balance: Math.max(0, (selected.balance || 0) - amount) }).eq('id', selected.id)
     toast.success('تم تسجيل الدفعة')
     setPayAmt('')
     setSelected(null)
