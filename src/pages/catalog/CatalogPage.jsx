@@ -277,7 +277,6 @@ export default function CatalogPage() {
   const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
   const bagTotal = bag.reduce((s, b) => s + priceOf(b) * b.qty, 0)
   const bagCount = bag.reduce((s, b) => s + b.qty, 0)
-  const hasNegotiated = bag.some(b => priceOf(b) !== b.product.sell_price)
 
   const isPartner = profile?.role === 'trusted_partner'
 
@@ -561,12 +560,6 @@ export default function CatalogPage() {
 
             {/* Footer */}
             <div className="px-5 pt-3 pb-5 border-t border-slate-100">
-              {hasNegotiated && (
-                <div className="flex items-center gap-2 bg-amber-50 text-amber-800 text-xs font-bold rounded-xl px-3 py-2 mb-3">
-                  <span>ℹ</span>
-                  <span>أسعار التفاوض ستظهر للإدارة</span>
-                </div>
-              )}
               <div className="flex items-baseline justify-between mb-3">
                 <span className="text-sm font-bold text-slate-500">الإجمالي</span>
                 <span className={`text-2xl font-black ${isPartner ? 'text-amber-600' : 'text-slate-900'}`}>
