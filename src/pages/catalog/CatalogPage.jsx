@@ -207,6 +207,48 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec, onPriceChange }) {
   )
 }
 
+// ── Order details (lazy-loaded items + actions) ────────────────
+function OrderDetails({ orderId, loadItems, fmt, cur, editable, onEdit, onDelete, customerAddress, customerPhone }) {
+  const [items, setItems] = useState(null)
+  useEffect(() => { loadItems(orderId).then(setItems) }, [orderId])
+  return (
+    <div className="px-3 pb-3 pt-1 border-t border-slate-200 bg-white">
+      {customerPhone && <div className="text-[11px] text-slate-500 mb-1">📞 {customerPhone}</div>}
+      {customerAddress && <div className="text-[11px] text-slate-500 mb-2">📍 {customerAddress}</div>}
+      {items === null ? (
+        <div className="text-xs text-slate-400 py-2">جاري التحميل...</div>
+      ) : items.length === 0 ? (
+        <div className="text-xs text-slate-400 py-2">لا توجد أصناف</div>
+      ) : (
+        <div className="space-y-1 mb-2">
+          {items.map(it => (
+            <div key={it.id} className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-2 py-1.5">
+              <span className="font-bold text-slate-700 truncate flex-1">{it.product_name}</span>
+              <span className="text-slate-500 mx-2">× {it.quantity}</span>
+              <span className="font-bold text-slate-800">{fmt(it.total)} {cur}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {editable && (
+        <div className="flex gap-2 pt-1">
+          <button onClick={onEdit}
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-lg text-xs transition active:scale-95">
+            ✏️ تعديل
+          </button>
+          <button onClick={onDelete}
+            className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 rounded-lg text-xs transition active:scale-95">
+            🗑 حذف
+          </button>
+        </div>
+      )}
+      {!editable && (
+        <div className="text-[10px] text-slate-400 text-center pt-1">⚠ تم بدء معالجة الطلب — لا يمكن التعديل</div>
+      )}
+    </div>
+  )
+}
+
 export default function CatalogPage() {
   const { categories, filteredProducts, activeCat, setActiveCat, searchQ, setSearchQ, loading } = useProductsStore()
   const { profile } = useAuthStore()
@@ -225,6 +267,13 @@ export default function CatalogPage() {
   const [customers, setCustomers]         = useState([])
   const [pickerOpen, setPickerOpen]       = useState(false)
   const [pickerQ, setPickerQ]             = useState('')
+
+  // My orders (vendor-only history)
+  const [showMyOrders, setShowMyOrders]   = useState(false)
+  const [myOrders, setMyOrders]           = useState([])
+  const [myOrdersLoading, setMyOrdersLoading] = useState(false)
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
+  const [editingOrder, setEditingOrder]   = useState(null) // { id, order_number }
 
   useEffect(() => {
     if (!showOrder || customers.length) return
@@ -245,6 +294,79 @@ export default function CatalogPage() {
         (c.name || '').toLowerCase().includes(pickerQ.toLowerCase()) ||
         (c.phone || '').includes(pickerQ))
     : customers
+
+  // ── My orders helpers ─────────────────────────────────────────
+  const loadMyOrders = async () => {
+    if (!profile?.id) return
+    setMyOrdersLoading(true)
+    const db = supabaseAdmin || supabase
+    const { data } = await db
+      .from('catalog_orders')
+      .select('id, order_number, customer_name, customer_phone, customer_address, total, status, stock_approved, created_at')
+      .eq('vendor_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    setMyOrders(data || [])
+    setMyOrdersLoading(false)
+  }
+
+  const openMyOrders = () => {
+    setShowMyOrders(true)
+    loadMyOrders()
+  }
+
+  const loadOrderItems = async (orderId) => {
+    const db = supabaseAdmin || supabase
+    const { data } = await db.from('catalog_order_items').select('*').eq('order_id', orderId)
+    return data || []
+  }
+
+  const editOrder = async (order) => {
+    const items = await loadOrderItems(order.id)
+    // Convert items into bag entries
+    const productMap = new Map(filteredProducts.map(p => [p.id, p]))
+    const newBag = items
+      .map(it => {
+        const product = productMap.get(it.product_id) || {
+          id: it.product_id,
+          name: it.product_name,
+          sell_price: it.original_price ?? it.unit_price,
+          emoji: '📦',
+          image_url: null,
+        }
+        return { product, qty: it.quantity, negotiatedPrice: it.unit_price }
+      })
+    setBag(newBag)
+    setCustomer({
+      name: order.customer_name || '',
+      phone: order.customer_phone || '',
+      address: order.customer_address || '',
+    })
+    setEditingOrder({ id: order.id, order_number: order.order_number })
+    setShowMyOrders(false)
+    setShowBag(true)
+    toast(`✏️ تعديل الطلب #${order.order_number}`, { duration: 3000 })
+  }
+
+  const deleteOrder = async (order) => {
+    if (!confirm(`حذف الطلب #${order.order_number}؟`)) return
+    const db = supabaseAdmin || supabase
+    await db.from('catalog_order_items').delete().eq('order_id', order.id)
+    const { error } = await db.from('catalog_orders').delete().eq('id', order.id)
+    if (error) { toast.error('فشل الحذف: ' + error.message); return }
+    toast.success('تم الحذف')
+    setMyOrders(prev => prev.filter(o => o.id !== order.id))
+  }
+
+  const STATUS_LABEL = {
+    new:       { txt: 'جديد',    cls: 'bg-blue-100 text-blue-700' },
+    approved:  { txt: 'مقبول',   cls: 'bg-emerald-100 text-emerald-700' },
+    rejected:  { txt: 'مرفوض',   cls: 'bg-rose-100 text-rose-700' },
+    delivered: { txt: 'مسلَّم',  cls: 'bg-slate-100 text-slate-700' },
+    cancelled: { txt: 'ملغى',    cls: 'bg-slate-100 text-slate-500' },
+  }
+
+  const isVendor = profile?.role === 'vendor' || profile?.role === 'admin'
 
   const kbInsert = (ch) => {
     if (activePriceId !== null) {
@@ -350,7 +472,8 @@ export default function CatalogPage() {
   const sendOrder = async () => {
     if (!customer.name || !customer.phone) { toast.error('أدخل الاسم والهاتف'); return }
     setSending(true)
-    const orderNum = generateOrderNumber('ORD')
+    // Reuse order_number when editing; generate a new one otherwise
+    const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
 
     // Use admin client to bypass RLS if available, otherwise anon (with proper RLS policy)
     const db = supabaseAdmin || supabase
@@ -364,6 +487,12 @@ export default function CatalogPage() {
     let saved = false
     let saveError = null
     try {
+      // If editing, remove the old order + items first so we can re-insert clean
+      if (editingOrder?.id) {
+        await withTimeout(db.from('catalog_order_items').delete().eq('order_id', editingOrder.id))
+        await withTimeout(db.from('catalog_orders').delete().eq('id', editingOrder.id))
+      }
+
       const { data: order, error: ordErr } = await withTimeout(
         db.from('catalog_orders').insert({
           order_number:      orderNum,
@@ -431,19 +560,31 @@ export default function CatalogPage() {
       return
     }
 
-    toast.success(`✔ تم حفظ الفاتورة #${orderNum} وإرسالها للإدارة`, { duration: 4000 })
+    toast.success(
+      editingOrder
+        ? `✔ تم تحديث الفاتورة #${orderNum}`
+        : `✔ تم حفظ الفاتورة #${orderNum} وإرسالها للإدارة`,
+      { duration: 4000 }
+    )
     setShowOrder(false)
     setBag([])
     setCustomer({ name:'', phone:'', address:'' })
+    setEditingOrder(null)
   }
 
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
       {/* Search + Category bar */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
-        <div className="p-2">
+        <div className="p-2 flex gap-2">
           <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-            className="inp" placeholder="🔍 ابحث عن منتج..." />
+            className="inp flex-1" placeholder="🔍 ابحث عن منتج..." />
+          {isVendor && (
+            <button onClick={openMyOrders}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold px-3 rounded-xl text-sm transition flex items-center gap-1 flex-shrink-0">
+              📋 طلباتي
+            </button>
+          )}
         </div>
         <div className="flex gap-1 overflow-x-auto px-2 pb-2">
           {categories.map(c => (
@@ -611,11 +752,76 @@ export default function CatalogPage() {
         </div>
       )}
 
+      {/* My orders modal */}
+      {showMyOrders && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 pt-10 animate-fade-in"
+          onClick={() => setShowMyOrders(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-black text-lg text-slate-900">📋 طلباتي</h2>
+              <button onClick={() => setShowMyOrders(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-lg leading-none">
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {myOrdersLoading ? (
+                <div className="text-center text-slate-400 py-8 text-sm">جاري التحميل...</div>
+              ) : myOrders.length === 0 ? (
+                <div className="text-center text-slate-400 py-8 text-sm">لا توجد طلبات</div>
+              ) : (
+                myOrders.map(o => {
+                  const st = STATUS_LABEL[o.status] || { txt: o.status, cls: 'bg-slate-100 text-slate-600' }
+                  const editable = o.status === 'new' && !o.stock_approved
+                  const expanded = expandedOrderId === o.id
+                  return (
+                    <div key={o.id} className="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+                      <button onClick={() => setExpandedOrderId(expanded ? null : o.id)}
+                        className="w-full px-3 py-2.5 flex items-start justify-between gap-2 hover:bg-slate-100 transition">
+                        <div className="flex-1 text-right min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-sm text-slate-900 truncate">{o.customer_name}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.txt}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            #{o.order_number} · {new Date(o.created_at).toLocaleDateString('fr-FR')} · {new Date(o.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <div className="text-left flex-shrink-0">
+                          <div className="font-black text-sm text-slate-900">{fmt(o.total)} <span className="text-[10px] font-normal text-slate-400">{cur}</span></div>
+                          <div className="text-[10px] text-slate-400">{expanded ? '▲' : '▼'}</div>
+                        </div>
+                      </button>
+                      {expanded && (
+                        <OrderDetails
+                          orderId={o.id}
+                          loadItems={loadOrderItems}
+                          fmt={fmt}
+                          cur={cur}
+                          editable={editable}
+                          onEdit={() => editOrder(o)}
+                          onDelete={() => deleteOrder(o)}
+                          customerAddress={o.customer_address}
+                          customerPhone={o.customer_phone}
+                        />
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order / customer info modal */}
       {showOrder && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 pt-10 animate-fade-in" style={{ paddingBottom: activeField ? '320px' : '16px' }}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
-            <h2 className="font-black text-lg mb-4">👤 معلومات الزبون</h2>
+            <h2 className="font-black text-lg mb-4">
+              {editingOrder ? `✏️ تعديل #${editingOrder.order_number}` : '👤 معلومات الزبون'}
+            </h2>
 
             {/* Existing customer picker */}
             <div className="mb-3">
