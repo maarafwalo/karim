@@ -11,7 +11,6 @@ import StockPage          from '../pages/stock/StockPage.jsx'
 import EditingPage        from '../pages/editing/EditingPage.jsx'
 import AdminPage          from '../pages/admin/AdminPage.jsx'
 import ReportsPage        from '../pages/reports/ReportsPage.jsx'
-import ExpensesPage       from '../pages/expenses/ExpensesPage.jsx'
 import CustomersPage      from '../pages/customers/CustomersPage.jsx'
 import SuppliersPage      from '../pages/suppliers/SuppliersPage.jsx'
 import DebtPage           from '../pages/debt/DebtPage.jsx'
@@ -62,7 +61,6 @@ export const router = createBrowserRouter([
           element: <RequireRole allowed={['admin', 'cashier', 'store_manager']} />,
           children: [
             { path: 'pos',       element: <POSPage /> },
-            { path: 'expenses',  element: <ExpensesPage /> },
             { path: 'debt',      element: <DebtPage /> },
           ],
         },
@@ -77,7 +75,6 @@ export const router = createBrowserRouter([
         {
           element: <RequireRole allowed={['admin', 'vendor']} />,
           children: [
-            { path: 'my-orders', element: <WorkspacePage /> },  // legacy alias
             { path: 'workspace', element: <WorkspacePage /> },
           ],
         },

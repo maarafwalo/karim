@@ -481,6 +481,10 @@ function OrderDetails({ orderId, cur, editable, onEdit, onDelete, customerAddres
 // ── Tab 2: طلباتي ──────────────────────────────────────────────
 function OrdersTab({ cur, profile }) {
   const navigate = useNavigate()
+  const setBagItems    = useBagStore(s => s.setItems)
+  const setBagCustomer = useBagStore(s => s.setCustomer)
+  const setEditingOrderInBag = useBagStore(s => s.setEditingOrder)
+  const products = useProductsStore(s => s.products)
   const [orders, setOrders]               = useState([])
   const [loading, setLoading]             = useState(true)
   const [expandedId, setExpandedId]       = useState(null)
@@ -506,23 +510,27 @@ function OrdersTab({ cur, profile }) {
   const editOrder = async (order) => {
     const db = supabaseAdmin || supabase
     const { data: items } = await db.from('catalog_order_items').select('*').eq('order_id', order.id)
-    sessionStorage.setItem('catalog_edit_handoff', JSON.stringify({
-      order_id:     order.id,
-      order_number: order.order_number,
-      customer: {
-        name:    order.customer_name || '',
-        phone:   order.customer_phone || '',
-        address: order.customer_address || '',
-      },
-      items: (items || []).map(it => ({
-        product_id:     it.product_id,
-        product_name:   it.product_name,
-        unit_price:     it.unit_price,
-        original_price: it.original_price,
-        quantity:       it.quantity,
-      })),
-    }))
-    navigate('/catalog')
+    // Build bag entries directly from order items + live products
+    const productMap = new Map((products || []).map(p => [p.id, p]))
+    const newBag = (items || []).map(it => {
+      const product = productMap.get(it.product_id) || {
+        id:         it.product_id,
+        name:       it.product_name,
+        sell_price: it.original_price ?? it.unit_price,
+        emoji:      '📦',
+        image_url:  null,
+      }
+      return { product, qty: it.quantity, negotiatedPrice: it.unit_price }
+    })
+    setBagItems(newBag)
+    setBagCustomer({
+      name:    order.customer_name || '',
+      phone:   order.customer_phone || '',
+      address: order.customer_address || '',
+    })
+    setEditingOrderInBag({ id: order.id, order_number: order.order_number })
+    toast(`✏️ تعديل الطلب #${order.order_number}`, { duration: 3000 })
+    window.location.hash = 'cart'
   }
 
   const deleteOrder = async (order) => {

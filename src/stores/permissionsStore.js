@@ -28,7 +28,7 @@ const DEFAULT_PERMISSIONS = {
   },
   vendor: {
     pos: false, customers: false, expenses: false, debt: false,
-    catalog: true, workspace: true,
+    catalog: false, workspace: true,
     stock: false, editing: false, suppliers: false, reports: false, surveillance: false,
   },
   store_manager: {
