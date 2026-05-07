@@ -850,7 +850,11 @@ function CustomersTab({ cur, profile }) {
     const { data, error } = await (supabaseAdmin || supabase).from('customers').insert({
       name: form.name.trim(), phone: form.phone.trim(),
     }).select().single()
-    if (error) { toast.error('خطأ في الحفظ'); return }
+    if (error) {
+      console.error('Customer insert failed:', error)
+      toast.error(`فشل: ${error.message || 'خطأ غير معروف'}`, { duration: 6000 })
+      return
+    }
     toast.success('تم إضافة الزبون')
     setForm({ name: '', phone: '' })
     setShowAdd(false)
