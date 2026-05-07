@@ -109,141 +109,36 @@ function BrowseTab({ cur }) {
   )
 }
 
-// ── Tab 1: السلة (live bag from store + inline checkout) ──────
-function CartTab({ cur, profile }) {
-  const navigate = useNavigate()
+// ── Shared order-save hook ─────────────────────────────────────
+function useOrderSave({ profile }) {
+  const [sending, setSending] = useState(false)
   const items        = useBagStore(s => s.items)
   const customer     = useBagStore(s => s.customer)
   const editingOrder = useBagStore(s => s.editingOrder)
-  const decItem      = useBagStore(s => s.decItem)
-  const removeItem   = useBagStore(s => s.removeItem)
-  const setNegPrice  = useBagStore(s => s.setNegPrice)
-  const addItem      = useBagStore(s => s.addItem)
   const clearBag     = useBagStore(s => s.clear)
-  const setEditingOrder = useBagStore(s => s.setEditingOrder)
-
-  const setBagCustomer = useBagStore(s => s.setCustomer)
-
-  const [stage, setStage]   = useState('cart')    // 'cart' | 'checkout'
-  const [sending, setSending] = useState(false)
-
-  // Inline customer picker state (loaded only when checkout opens)
-  const [allCustomers, setAllCustomers] = useState([])
-  const [recents, setRecents]           = useState([])  // top 5 most-recent customers from this vendor's orders
-  const [pickerQ, setPickerQ]           = useState('')
-  const [showNewForm, setShowNewForm]   = useState(false)
-  const [newCust, setNewCust]           = useState({ name: '', phone: '' })
-  const [newSaving, setNewSaving]       = useState(false)
-  const [highlightIdx, setHighlightIdx] = useState(0)
-
-  // Virtual keyboard target: 'search' | 'newName' | 'newPhone' | null
-  const [kbField, setKbField] = useState(null)
-  const kbMode = kbField === 'newPhone' ? 'num' : 'ar'
-
-  const kbAppend = (ch) => {
-    if (kbField === 'search')   setPickerQ(q => q + ch)
-    if (kbField === 'newName')  setNewCust(c => ({ ...c, name:  c.name  + ch }))
-    if (kbField === 'newPhone') setNewCust(c => ({ ...c, phone: c.phone + ch }))
-  }
-  const kbBackspace = () => {
-    if (kbField === 'search')   setPickerQ(q => q.slice(0, -1))
-    if (kbField === 'newName')  setNewCust(c => ({ ...c, name:  c.name.slice(0, -1) }))
-    if (kbField === 'newPhone') setNewCust(c => ({ ...c, phone: c.phone.slice(0, -1) }))
-  }
-
-  useEffect(() => {
-    if (stage !== 'checkout' || allCustomers.length) return
-    supabase.from('customers').select('id,name,phone,address,balance').order('name').then(({ data }) => {
-      if (data) setAllCustomers(data)
-    })
-  }, [stage])
-
-  // Fetch this vendor's most recently-used customers from their catalog_orders
-  useEffect(() => {
-    if (stage !== 'checkout' || !profile?.id || recents.length) return
-    const db = supabaseAdmin || supabase
-    db.from('catalog_orders')
-      .select('customer_name, customer_phone, customer_address, created_at')
-      .eq('vendor_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(40)
-      .then(({ data }) => {
-        if (!data) return
-        // Dedupe by phone (or name if no phone), keep only most recent occurrence
-        const seen = new Set()
-        const list = []
-        for (const o of data) {
-          if (!o.customer_name) continue
-          const key = (o.customer_phone || o.customer_name).trim()
-          if (seen.has(key)) continue
-          seen.add(key)
-          list.push({
-            name:    o.customer_name,
-            phone:   o.customer_phone || '',
-            address: o.customer_address || '',
-          })
-          if (list.length >= 5) break
-        }
-        setRecents(list)
-      })
-  }, [stage, profile?.id])
-
-  const filteredCust = pickerQ
-    ? allCustomers.filter(c =>
-        (c.name || '').toLowerCase().includes(pickerQ.toLowerCase()) ||
-        (c.phone || '').includes(pickerQ))
-    : allCustomers
-
-  // Reset keyboard highlight when query changes
-  useEffect(() => { setHighlightIdx(0) }, [pickerQ])
-
-  const pickCustomer = (c) => {
-    setBagCustomer({ name: c.name || '', phone: c.phone || '', address: c.address || '' })
-    setPickerQ('')
-  }
-
-  const clearCustomer = () => setBagCustomer({ name: '', phone: '', address: '' })
-
-  const saveNewCustomer = async () => {
-    if (!newCust.name.trim()) { toast.error('الاسم مطلوب'); return }
-    setNewSaving(true)
-    const { data, error } = await supabase.from('customers').insert({
-      name: newCust.name.trim(), phone: newCust.phone.trim(),
-    }).select().single()
-    setNewSaving(false)
-    if (error) { toast.error('فشل الحفظ'); return }
-    if (data) {
-      setAllCustomers(prev => [data, ...prev])
-      pickCustomer(data)
-      setShowNewForm(false)
-      setNewCust({ name: '', phone: '' })
-      toast.success(`✓ ${data.name} محدد للطلب`)
-    }
-  }
+  const navigate     = useNavigate()
 
   const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
   const total   = items.reduce((s, b) => s + priceOf(b) * b.qty, 0)
   const count   = items.reduce((s, b) => s + b.qty, 0)
 
-  const sendOrder = async () => {
+  const send = async () => {
+    if (count === 0) { toast.error('السلة فارغة'); return }
     setSending(true)
-    // Customer is optional — fall back to "زبون عابر" if not provided
+    const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
+    const db = supabaseAdmin || supabase
     const cName  = customer?.name?.trim()  || 'زبون عابر'
     const cPhone = customer?.phone?.trim() || ''
     const cAddr  = customer?.address?.trim() || ''
-    const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
-    const db = supabaseAdmin || supabase
     const withTimeout = (p, ms = 8000) => Promise.race([
       p,
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
     ])
-
     try {
       if (editingOrder?.id) {
         await withTimeout(db.from('catalog_order_items').delete().eq('order_id', editingOrder.id))
         await withTimeout(db.from('catalog_orders').delete().eq('id', editingOrder.id))
       }
-
       const { data: order, error: ordErr } = await withTimeout(
         db.from('catalog_orders').insert({
           order_number:       orderNum,
@@ -259,29 +154,25 @@ function CartTab({ cur, profile }) {
         }).select().single()
       )
       if (ordErr) throw ordErr
-
       const { error: itemsErr } = await withTimeout(
         db.from('catalog_order_items').insert(
           items.map(b => {
-            const negPrice = priceOf(b)
-            const orig = b.product.sell_price
-            const isNeg = negPrice !== orig
+            const np = priceOf(b), orig = b.product.sell_price, isNeg = np !== orig
             return {
               order_id:       order.id,
               product_id:     b.product.id,
               product_name:   b.product.name,
-              unit_price:     negPrice,
+              unit_price:     np,
               original_price: orig,
               negotiated:     isNeg,
-              price_diff:     +(negPrice - orig).toFixed(2),
+              price_diff:     +(np - orig).toFixed(2),
               quantity:       b.qty,
-              total:          negPrice * b.qty,
+              total:          np * b.qty,
             }
           })
         )
       )
       if (itemsErr) throw itemsErr
-
       toast.success(
         editingOrder
           ? `✔ تم تحديث الفاتورة #${orderNum}`
@@ -289,8 +180,6 @@ function CartTab({ cur, profile }) {
         { duration: 4000 }
       )
       clearBag()
-      setStage('cart')
-      // Bounce to orders tab via parent — handled by parent listening to bag state
       navigate('/workspace#orders', { replace: true })
     } catch (e) {
       toast.error('فشل الحفظ: ' + (e.message || 'خطأ'))
@@ -298,6 +187,25 @@ function CartTab({ cur, profile }) {
       setSending(false)
     }
   }
+
+  return { send, sending, total, count, items, customer, editingOrder }
+}
+
+// ── Tab 1: السلة (live bag from store) ─────────────────────────
+function CartTab({ cur, profile }) {
+  const navigate = useNavigate()
+  const items        = useBagStore(s => s.items)
+  const editingOrder = useBagStore(s => s.editingOrder)
+  const decItem      = useBagStore(s => s.decItem)
+  const removeItem   = useBagStore(s => s.removeItem)
+  const setNegPrice  = useBagStore(s => s.setNegPrice)
+  const addItem      = useBagStore(s => s.addItem)
+  const clearBag     = useBagStore(s => s.clear)
+  const setEditingOrder = useBagStore(s => s.setEditingOrder)
+
+  const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
+  const total   = items.reduce((s, b) => s + priceOf(b) * b.qty, 0)
+  const count   = items.reduce((s, b) => s + b.qty, 0)
 
   if (items.length === 0) {
     return (
@@ -308,197 +216,6 @@ function CartTab({ cur, profile }) {
           className="bg-primary hover:bg-primary-dark text-white font-black px-6 py-3 rounded-2xl shadow-lg transition active:scale-95">
           📋 تصفح الكتالوج
         </button>
-      </div>
-    )
-  }
-
-  // ── Checkout stage ──
-  if (stage === 'checkout') {
-    const hasCustomer = !!(customer?.name && customer?.phone)
-    return (
-      <div className="flex flex-col h-full">
-        {editingOrder && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-xs font-bold">
-            ✏️ تعديل الطلب #{editingOrder.order_number}
-          </div>
-        )}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <h3 className="font-black text-slate-900 text-sm">👤 الزبون</h3>
-
-          {/* Selected customer summary OR fast picker */}
-          {hasCustomer ? (
-            <div className="bg-white border-2 border-emerald-300 rounded-2xl p-3 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm flex items-center justify-center flex-shrink-0">
-                  {customer.name.trim().slice(0, 2)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm text-slate-900 truncate">{customer.name}</p>
-                  {customer.phone && <p className="text-[11px] text-slate-500 ltr">{customer.phone}</p>}
-                  {customer.address && <p className="text-[11px] text-slate-500 truncate">📍 {customer.address}</p>}
-                </div>
-                <button onClick={clearCustomer}
-                  className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex-shrink-0">
-                  تغيير
-                </button>
-              </div>
-            </div>
-          ) : showNewForm ? (
-            <div className="bg-white border-2 border-indigo-200 rounded-2xl p-4 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-black text-indigo-700">+ زبون جديد</span>
-                <button onClick={() => { setShowNewForm(false); setNewCust({ name: '', phone: '' }) }}
-                  className="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-base leading-none">✕</button>
-              </div>
-              <input
-                value={newCust.name}
-                readOnly inputMode="none"
-                onClick={() => setKbField('newName')}
-                onChange={() => {}}
-                autoFocus
-                className={`inp cursor-pointer font-arabic ${kbField === 'newName' ? 'ring-2 ring-indigo-400' : ''}`}
-                placeholder="الاسم *" />
-              <input
-                value={newCust.phone}
-                readOnly inputMode="none"
-                onClick={() => setKbField('newPhone')}
-                onChange={() => {}}
-                className={`inp cursor-pointer ${kbField === 'newPhone' ? 'ring-2 ring-indigo-400' : ''}`}
-                placeholder="الهاتف" />
-              <button onClick={saveNewCustomer} disabled={newSaving || !newCust.name.trim()}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-black py-3 rounded-xl shadow-sm transition active:scale-95">
-                {newSaving ? '...' : '✔ حفظ واختيار'}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Recent customers — one-tap access (only when not searching) */}
-              {recents.length > 0 && !pickerQ && (
-                <div>
-                  <div className="text-[10px] font-black text-slate-400 mb-1.5 px-1">⏱ الأخيرون</div>
-                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                    {recents.map((r, i) => (
-                      <button key={i} onClick={() => pickCustomer(r)}
-                        className="flex-shrink-0 flex flex-col items-center gap-1 bg-white hover:bg-indigo-50 active:bg-indigo-100 border-2 border-slate-200 hover:border-indigo-300 rounded-2xl px-3 py-2 transition active:scale-95 min-w-[68px]">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
-                          {r.name.trim().slice(0, 2)}
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-700 truncate max-w-[64px]">{r.name}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Search + add new */}
-              <div className="flex items-center gap-2">
-                <input
-                  value={pickerQ}
-                  readOnly inputMode="none"
-                  onClick={() => setKbField('search')}
-                  onChange={() => {}}
-                  className={`inp cursor-pointer font-arabic flex-1 ${kbField === 'search' ? 'ring-2 ring-indigo-400' : ''}`}
-                  placeholder="🔍 ابحث بالاسم أو الهاتف..." />
-                <button onClick={() => { setShowNewForm(true); setKbField('newName') }}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-sm px-3 py-3 rounded-xl flex-shrink-0 shadow-sm transition active:scale-95">
-                  + جديد
-                </button>
-              </div>
-
-              {/* Results list */}
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="max-h-72 overflow-y-auto">
-                  {allCustomers.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
-                      <span className="text-3xl">👤</span>
-                      <span className="text-xs">لا يوجد زبائن — اضغط <span className="font-black text-indigo-600">+ جديد</span></span>
-                    </div>
-                  ) : filteredCust.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
-                      <span className="text-3xl">🔍</span>
-                      <span className="text-xs">لا توجد نتائج لـ &quot;{pickerQ}&quot;</span>
-                      <button onClick={() => { setNewCust({ name: pickerQ, phone: '' }); setShowNewForm(true) }}
-                        className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black text-xs px-3 py-1.5 rounded-lg mt-1">
-                        + إضافة &quot;{pickerQ}&quot; كزبون جديد
-                      </button>
-                    </div>
-                  ) : (
-                    filteredCust.slice(0, 50).map((c, i) => {
-                      const highlighted = i === highlightIdx
-                      const q = pickerQ.toLowerCase()
-                      // bold the matched substring of the name
-                      const renderName = () => {
-                        if (!q || !c.name) return c.name || '—'
-                        const idx = c.name.toLowerCase().indexOf(q)
-                        if (idx === -1) return c.name
-                        return <>
-                          {c.name.slice(0, idx)}
-                          <span className="bg-yellow-200 text-slate-900 font-black">{c.name.slice(idx, idx + q.length)}</span>
-                          {c.name.slice(idx + q.length)}
-                        </>
-                      }
-                      return (
-                        <button key={c.id} onClick={() => pickCustomer(c)}
-                          onMouseEnter={() => setHighlightIdx(i)}
-                          className={`w-full px-3 py-3 flex items-center gap-3 border-b border-slate-100 last:border-0 transition text-right ${
-                            highlighted ? 'bg-indigo-50' : 'hover:bg-slate-50 active:bg-indigo-100'
-                          }`}>
-                          <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
-                            c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
-                          }`}>
-                            {(c.name || '?').trim().slice(0, 2)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-slate-800 truncate">{renderName()}</div>
-                            {c.phone && <div className="text-[11px] text-slate-500 ltr">{c.phone}</div>}
-                          </div>
-                          {c.balance > 0 && (
-                            <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">
-                              دين: {fmt(c.balance)}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="bg-slate-100 rounded-xl px-4 py-3 flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-600">الإجمالي</span>
-            <span className="text-xl font-black text-slate-900">{fmt(total)} <span className="text-xs font-normal text-slate-400">{cur}</span></span>
-          </div>
-        </div>
-
-        <div className="bg-white border-t border-slate-200 px-4 py-3 flex gap-2"
-          style={{ paddingBottom: kbField ? '24px' : 'env(safe-area-inset-bottom, 12px)' }}>
-          <button onClick={() => setStage('cart')}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-3 rounded-2xl transition active:scale-95">
-            ← عودة
-          </button>
-          <button onClick={sendOrder} disabled={sending}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-3 rounded-2xl shadow-lg transition active:scale-95">
-            {sending
-              ? '...'
-              : editingOrder
-                ? '✔ حفظ التعديلات'
-                : hasCustomer
-                  ? '✔ حفظ الطلب'
-                  : '✔ حفظ بدون زبون'}
-          </button>
-        </div>
-
-        {/* Virtual keyboard appears when an input is tapped */}
-        {kbField && (
-          <VirtualKeyboard
-            mode={kbMode}
-            onKey={kbAppend}
-            onBackspace={kbBackspace}
-            onClose={() => setKbField(null)}
-          />
-        )}
       </div>
     )
   }
@@ -567,9 +284,9 @@ function CartTab({ cur, profile }) {
           <div className="text-xs text-slate-500">{count} منتج</div>
           <div className="text-xl font-black text-slate-900">{fmt(total)} <span className="text-xs font-normal text-slate-400">{cur}</span></div>
         </div>
-        <button onClick={() => setStage('checkout')}
+        <button onClick={() => { window.location.hash = 'customers' }}
           className="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-5 py-3 rounded-2xl shadow-lg transition active:scale-95">
-          {editingOrder ? '✔ متابعة' : '📋 إكمال الطلب'}
+          {editingOrder ? '✔ متابعة' : '👤 اختر زبون'}
         </button>
       </div>
     </div>
@@ -962,9 +679,11 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
 }
 
 // ── Tab 3: الزبائن (CRM-style unified cards) ──────────────────
-function CustomersTab({ cur }) {
+function CustomersTab({ cur, profile }) {
   const setBagCustomer = useBagStore(s => s.setCustomer)
   const bagCount       = useBagStore(s => s.items.reduce((a, b) => a + b.qty, 0))
+  const bagCustomer    = useBagStore(s => s.customer)
+  const { send: saveOrder, sending: savingOrder, total: bagTotal } = useOrderSave({ profile })
   const [customers, setCustomers] = useState([])
   const [search, setSearch]       = useState('')
   const [loading, setLoading]     = useState(false)
@@ -993,11 +712,10 @@ function CustomersTab({ cur }) {
     setShowAdd(false)
     if (data) {
       setCustomers(prev => [data, ...prev])
-      // If there's an active bag, auto-select this new customer for the order
+      // Auto-select for the active bag
       if (bagCount > 0) {
         setBagCustomer({ name: data.name || '', phone: data.phone || '', address: data.address || '' })
         toast.success(`✓ ${data.name} محدد للطلب`)
-        window.location.hash = 'cart'
       } else {
         setExpandedId(data.id)
       }
@@ -1032,8 +750,32 @@ function CustomersTab({ cur }) {
     return { totalDebt, debtors, total: customers.length }
   }, [customers])
 
+  const hasBagCustomer = !!(bagCustomer?.name)
+
   return (
     <div className="flex flex-col h-full">
+      {/* Sticky checkout banner — only when a bag is active */}
+      {bagCount > 0 && (
+        <div className="bg-gradient-to-l from-emerald-500 to-emerald-600 text-white px-3 py-2.5 flex items-center gap-2 flex-shrink-0 shadow-sm">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] opacity-80 leading-none">سلة نشطة · {bagCount} منتج</div>
+            <div className="font-black text-sm leading-tight mt-0.5">
+              {hasBagCustomer ? `لـ ${bagCustomer.name}` : 'بدون زبون'}
+              <span className="opacity-60 mx-1">·</span>
+              {fmt(bagTotal)} {cur}
+            </div>
+          </div>
+          <button onClick={() => { window.location.hash = 'cart' }}
+            className="bg-white/20 hover:bg-white/30 active:scale-95 text-white font-bold text-xs px-2.5 py-2 rounded-lg flex-shrink-0">
+            ← السلة
+          </button>
+          <button onClick={saveOrder} disabled={savingOrder}
+            className="bg-white text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 active:scale-95 font-black text-xs px-3 py-2 rounded-lg flex-shrink-0 shadow-sm">
+            {savingOrder ? '...' : (hasBagCustomer ? '✔ حفظ الطلب' : '✔ بدون زبون')}
+          </button>
+        </div>
+      )}
+
       {/* Stats + search */}
       <div className="bg-white border-b border-slate-100 px-3 pt-3 pb-2 flex-shrink-0">
         <div className="grid grid-cols-3 gap-2 mb-2">
@@ -1118,10 +860,8 @@ function CustomersTab({ cur }) {
                   phone:   c.phone || '',
                   address: c.address || '',
                 })
+                setExpandedId(null)
                 toast.success(`✓ ${c.name} محدد للطلب`)
-                if (bagCount > 0) {
-                  window.location.hash = 'cart'
-                }
               }}
             />
           ))
@@ -1277,7 +1017,7 @@ export default function WorkspacePage() {
         {tab === 'browse'    && <BrowseTab cur={cur} />}
         {tab === 'cart'      && <CartTab cur={cur} profile={profile} />}
         {tab === 'orders'    && <OrdersTab cur={cur} profile={profile} />}
-        {tab === 'customers' && <CustomersTab cur={cur} />}
+        {tab === 'customers' && <CustomersTab cur={cur} profile={profile} />}
         {tab === 'debts'     && <DebtsTab cur={cur} />}
       </div>
     </div>
