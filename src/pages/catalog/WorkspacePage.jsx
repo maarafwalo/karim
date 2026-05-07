@@ -129,10 +129,12 @@ function CartTab({ cur, profile }) {
 
   // Inline customer picker state (loaded only when checkout opens)
   const [allCustomers, setAllCustomers] = useState([])
+  const [recents, setRecents]           = useState([])  // top 5 most-recent customers from this vendor's orders
   const [pickerQ, setPickerQ]           = useState('')
   const [showNewForm, setShowNewForm]   = useState(false)
   const [newCust, setNewCust]           = useState({ name: '', phone: '' })
   const [newSaving, setNewSaving]       = useState(false)
+  const [highlightIdx, setHighlightIdx] = useState(0)
 
   useEffect(() => {
     if (stage !== 'checkout' || allCustomers.length) return
@@ -141,11 +143,44 @@ function CartTab({ cur, profile }) {
     })
   }, [stage])
 
+  // Fetch this vendor's most recently-used customers from their catalog_orders
+  useEffect(() => {
+    if (stage !== 'checkout' || !profile?.id || recents.length) return
+    const db = supabaseAdmin || supabase
+    db.from('catalog_orders')
+      .select('customer_name, customer_phone, customer_address, created_at')
+      .eq('vendor_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(40)
+      .then(({ data }) => {
+        if (!data) return
+        // Dedupe by phone (or name if no phone), keep only most recent occurrence
+        const seen = new Set()
+        const list = []
+        for (const o of data) {
+          if (!o.customer_name) continue
+          const key = (o.customer_phone || o.customer_name).trim()
+          if (seen.has(key)) continue
+          seen.add(key)
+          list.push({
+            name:    o.customer_name,
+            phone:   o.customer_phone || '',
+            address: o.customer_address || '',
+          })
+          if (list.length >= 5) break
+        }
+        setRecents(list)
+      })
+  }, [stage, profile?.id])
+
   const filteredCust = pickerQ
     ? allCustomers.filter(c =>
         (c.name || '').toLowerCase().includes(pickerQ.toLowerCase()) ||
         (c.phone || '').includes(pickerQ))
     : allCustomers
+
+  // Reset keyboard highlight when query changes
+  useEffect(() => { setHighlightIdx(0) }, [pickerQ])
 
   const pickCustomer = (c) => {
     setBagCustomer({ name: c.name || '', phone: c.phone || '', address: c.address || '' })
@@ -291,57 +326,117 @@ function CartTab({ cur, profile }) {
               </div>
             </div>
           ) : showNewForm ? (
-            <div className="bg-white border-2 border-indigo-200 rounded-2xl p-3 space-y-2">
+            <div className="bg-white border-2 border-indigo-200 rounded-2xl p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-indigo-700">+ زبون جديد</span>
+                <span className="text-sm font-black text-indigo-700">+ زبون جديد</span>
                 <button onClick={() => { setShowNewForm(false); setNewCust({ name: '', phone: '' }) }}
-                  className="text-slate-400 hover:text-slate-700 text-xs">✕</button>
+                  className="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-base leading-none">✕</button>
               </div>
               <input autoFocus value={newCust.name} onChange={e => setNewCust(c => ({ ...c, name: e.target.value }))}
-                className="inp text-sm" placeholder="الاسم *" />
+                className="inp" placeholder="الاسم *" />
               <input value={newCust.phone} onChange={e => setNewCust(c => ({ ...c, phone: e.target.value }))}
-                type="tel" className="inp text-sm" placeholder="الهاتف" />
-              <button onClick={saveNewCustomer} disabled={newSaving}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-black py-2 rounded-lg">
+                onKeyDown={e => { if (e.key === 'Enter') saveNewCustomer() }}
+                type="tel" className="inp" placeholder="الهاتف" />
+              <button onClick={saveNewCustomer} disabled={newSaving || !newCust.name.trim()}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-black py-3 rounded-xl shadow-sm transition active:scale-95">
                 {newSaving ? '...' : '✔ حفظ واختيار'}
               </button>
             </div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-center gap-2 p-2 border-b border-slate-100">
-                <input autoFocus value={pickerQ} onChange={e => setPickerQ(e.target.value)}
-                  className="inp text-sm flex-1" placeholder="🔍 ابحث بالاسم أو الهاتف..." />
+            <div className="space-y-2">
+              {/* Recent customers — one-tap access (only when not searching) */}
+              {recents.length > 0 && !pickerQ && (
+                <div>
+                  <div className="text-[10px] font-black text-slate-400 mb-1.5 px-1">⏱ الأخيرون</div>
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                    {recents.map((r, i) => (
+                      <button key={i} onClick={() => pickCustomer(r)}
+                        className="flex-shrink-0 flex flex-col items-center gap-1 bg-white hover:bg-indigo-50 active:bg-indigo-100 border-2 border-slate-200 hover:border-indigo-300 rounded-2xl px-3 py-2 transition active:scale-95 min-w-[68px]">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
+                          {r.name.trim().slice(0, 2)}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-700 truncate max-w-[64px]">{r.name}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Search + add new */}
+              <div className="flex items-center gap-2">
+                <input autoFocus
+                  value={pickerQ}
+                  onChange={e => setPickerQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    const list = filteredCust.slice(0, 50)
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, list.length - 1)) }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
+                    else if (e.key === 'Enter' && list[highlightIdx]) { e.preventDefault(); pickCustomer(list[highlightIdx]) }
+                  }}
+                  className="inp flex-1" placeholder="🔍 ابحث بالاسم أو الهاتف..." />
                 <button onClick={() => setShowNewForm(true)}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs px-3 py-2 rounded-xl flex-shrink-0">
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-sm px-3 py-3 rounded-xl flex-shrink-0 shadow-sm transition active:scale-95">
                   + جديد
                 </button>
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {allCustomers.length === 0 ? (
-                  <div className="text-center text-slate-400 text-xs py-6">لا توجد زبائن — أضف واحداً</div>
-                ) : filteredCust.length === 0 ? (
-                  <div className="text-center text-slate-400 text-xs py-6">لا توجد نتائج</div>
-                ) : (
-                  filteredCust.slice(0, 50).map(c => (
-                    <button key={c.id} onClick={() => pickCustomer(c)}
-                      className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-indigo-50 active:bg-indigo-100 border-b border-slate-100 last:border-0 transition text-right">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs flex-shrink-0 ${
-                        c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
-                      }`}>
-                        {(c.name || '?').trim().slice(0, 2)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm text-slate-800 truncate">{c.name || '—'}</div>
-                        {c.phone && <div className="text-[11px] text-slate-500 ltr">{c.phone}</div>}
-                      </div>
-                      {c.balance > 0 && (
-                        <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">
-                          دين: {fmt(c.balance)}
-                        </span>
-                      )}
-                    </button>
-                  ))
-                )}
+
+              {/* Results list */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="max-h-72 overflow-y-auto">
+                  {allCustomers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+                      <span className="text-3xl">👤</span>
+                      <span className="text-xs">لا يوجد زبائن — اضغط <span className="font-black text-indigo-600">+ جديد</span></span>
+                    </div>
+                  ) : filteredCust.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+                      <span className="text-3xl">🔍</span>
+                      <span className="text-xs">لا توجد نتائج لـ &quot;{pickerQ}&quot;</span>
+                      <button onClick={() => { setNewCust({ name: pickerQ, phone: '' }); setShowNewForm(true) }}
+                        className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black text-xs px-3 py-1.5 rounded-lg mt-1">
+                        + إضافة &quot;{pickerQ}&quot; كزبون جديد
+                      </button>
+                    </div>
+                  ) : (
+                    filteredCust.slice(0, 50).map((c, i) => {
+                      const highlighted = i === highlightIdx
+                      const q = pickerQ.toLowerCase()
+                      // bold the matched substring of the name
+                      const renderName = () => {
+                        if (!q || !c.name) return c.name || '—'
+                        const idx = c.name.toLowerCase().indexOf(q)
+                        if (idx === -1) return c.name
+                        return <>
+                          {c.name.slice(0, idx)}
+                          <span className="bg-yellow-200 text-slate-900 font-black">{c.name.slice(idx, idx + q.length)}</span>
+                          {c.name.slice(idx + q.length)}
+                        </>
+                      }
+                      return (
+                        <button key={c.id} onClick={() => pickCustomer(c)}
+                          onMouseEnter={() => setHighlightIdx(i)}
+                          className={`w-full px-3 py-3 flex items-center gap-3 border-b border-slate-100 last:border-0 transition text-right ${
+                            highlighted ? 'bg-indigo-50' : 'hover:bg-slate-50 active:bg-indigo-100'
+                          }`}>
+                          <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
+                            c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
+                          }`}>
+                            {(c.name || '?').trim().slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-sm text-slate-800 truncate">{renderName()}</div>
+                            {c.phone && <div className="text-[11px] text-slate-500 ltr">{c.phone}</div>}
+                          </div>
+                          {c.balance > 0 && (
+                            <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">
+                              دين: {fmt(c.balance)}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
               </div>
             </div>
           )}
