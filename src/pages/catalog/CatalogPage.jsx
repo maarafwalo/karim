@@ -78,7 +78,7 @@ function PriceAdjuster({ price, originalPrice, onAdjust, onReset, onClose, cur =
   )
 }
 
-function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
+export function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
   const layout = mode === 'num' ? NUM_LAYOUT : AR_LAYOUT
   return (
     <div

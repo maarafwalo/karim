@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../stores/settingsStore.js'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useBagStore } from '../../stores/bagStore.js'
 import { fmt, fmtDate, buildWhatsApp, generateOrderNumber } from '../../lib/utils.js'
-import { ProductCard } from './CatalogPage.jsx'
+import { ProductCard, VirtualKeyboard } from './CatalogPage.jsx'
 import toast from 'react-hot-toast'
 
 const STATUS_LABEL = {
@@ -136,6 +136,21 @@ function CartTab({ cur, profile }) {
   const [newSaving, setNewSaving]       = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
 
+  // Virtual keyboard target: 'search' | 'newName' | 'newPhone' | null
+  const [kbField, setKbField] = useState(null)
+  const kbMode = kbField === 'newPhone' ? 'num' : 'ar'
+
+  const kbAppend = (ch) => {
+    if (kbField === 'search')   setPickerQ(q => q + ch)
+    if (kbField === 'newName')  setNewCust(c => ({ ...c, name:  c.name  + ch }))
+    if (kbField === 'newPhone') setNewCust(c => ({ ...c, phone: c.phone + ch }))
+  }
+  const kbBackspace = () => {
+    if (kbField === 'search')   setPickerQ(q => q.slice(0, -1))
+    if (kbField === 'newName')  setNewCust(c => ({ ...c, name:  c.name.slice(0, -1) }))
+    if (kbField === 'newPhone') setNewCust(c => ({ ...c, phone: c.phone.slice(0, -1) }))
+  }
+
   useEffect(() => {
     if (stage !== 'checkout' || allCustomers.length) return
     supabase.from('customers').select('id,name,phone,address,balance').order('name').then(({ data }) => {
@@ -211,8 +226,11 @@ function CartTab({ cur, profile }) {
   const count   = items.reduce((s, b) => s + b.qty, 0)
 
   const sendOrder = async () => {
-    if (!customer.name || !customer.phone) { toast.error('أدخل الاسم والهاتف'); return }
     setSending(true)
+    // Customer is optional — fall back to "زبون عابر" if not provided
+    const cName  = customer?.name?.trim()  || 'زبون عابر'
+    const cPhone = customer?.phone?.trim() || ''
+    const cAddr  = customer?.address?.trim() || ''
     const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
     const db = supabaseAdmin || supabase
     const withTimeout = (p, ms = 8000) => Promise.race([
@@ -230,9 +248,9 @@ function CartTab({ cur, profile }) {
         db.from('catalog_orders').insert({
           order_number:       orderNum,
           vendor_id:          profile?.id || null,
-          customer_name:      customer.name,
-          customer_phone:     customer.phone,
-          customer_address:   customer.address,
+          customer_name:      cName,
+          customer_phone:     cPhone,
+          customer_address:   cAddr,
           subtotal:           total,
           total:              total,
           status:             'new',
@@ -332,11 +350,21 @@ function CartTab({ cur, profile }) {
                 <button onClick={() => { setShowNewForm(false); setNewCust({ name: '', phone: '' }) }}
                   className="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-base leading-none">✕</button>
               </div>
-              <input autoFocus value={newCust.name} onChange={e => setNewCust(c => ({ ...c, name: e.target.value }))}
-                className="inp" placeholder="الاسم *" />
-              <input value={newCust.phone} onChange={e => setNewCust(c => ({ ...c, phone: e.target.value }))}
-                onKeyDown={e => { if (e.key === 'Enter') saveNewCustomer() }}
-                type="tel" className="inp" placeholder="الهاتف" />
+              <input
+                value={newCust.name}
+                readOnly inputMode="none"
+                onClick={() => setKbField('newName')}
+                onChange={() => {}}
+                autoFocus
+                className={`inp cursor-pointer font-arabic ${kbField === 'newName' ? 'ring-2 ring-indigo-400' : ''}`}
+                placeholder="الاسم *" />
+              <input
+                value={newCust.phone}
+                readOnly inputMode="none"
+                onClick={() => setKbField('newPhone')}
+                onChange={() => {}}
+                className={`inp cursor-pointer ${kbField === 'newPhone' ? 'ring-2 ring-indigo-400' : ''}`}
+                placeholder="الهاتف" />
               <button onClick={saveNewCustomer} disabled={newSaving || !newCust.name.trim()}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-black py-3 rounded-xl shadow-sm transition active:scale-95">
                 {newSaving ? '...' : '✔ حفظ واختيار'}
@@ -364,17 +392,14 @@ function CartTab({ cur, profile }) {
 
               {/* Search + add new */}
               <div className="flex items-center gap-2">
-                <input autoFocus
+                <input
                   value={pickerQ}
-                  onChange={e => setPickerQ(e.target.value)}
-                  onKeyDown={(e) => {
-                    const list = filteredCust.slice(0, 50)
-                    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, list.length - 1)) }
-                    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
-                    else if (e.key === 'Enter' && list[highlightIdx]) { e.preventDefault(); pickCustomer(list[highlightIdx]) }
-                  }}
-                  className="inp flex-1" placeholder="🔍 ابحث بالاسم أو الهاتف..." />
-                <button onClick={() => setShowNewForm(true)}
+                  readOnly inputMode="none"
+                  onClick={() => setKbField('search')}
+                  onChange={() => {}}
+                  className={`inp cursor-pointer font-arabic flex-1 ${kbField === 'search' ? 'ring-2 ring-indigo-400' : ''}`}
+                  placeholder="🔍 ابحث بالاسم أو الهاتف..." />
+                <button onClick={() => { setShowNewForm(true); setKbField('newName') }}
                   className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-sm px-3 py-3 rounded-xl flex-shrink-0 shadow-sm transition active:scale-95">
                   + جديد
                 </button>
@@ -447,16 +472,33 @@ function CartTab({ cur, profile }) {
           </div>
         </div>
 
-        <div className="bg-white border-t border-slate-200 px-4 py-3 flex gap-2">
+        <div className="bg-white border-t border-slate-200 px-4 py-3 flex gap-2"
+          style={{ paddingBottom: kbField ? '24px' : 'env(safe-area-inset-bottom, 12px)' }}>
           <button onClick={() => setStage('cart')}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-3 rounded-2xl transition active:scale-95">
             ← عودة
           </button>
-          <button onClick={sendOrder} disabled={sending || !hasCustomer}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-3 rounded-2xl shadow-lg transition active:scale-95">
-            {sending ? '...' : (editingOrder ? '✔ حفظ التعديلات' : '✔ حفظ الطلب')}
+          <button onClick={sendOrder} disabled={sending}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-3 rounded-2xl shadow-lg transition active:scale-95">
+            {sending
+              ? '...'
+              : editingOrder
+                ? '✔ حفظ التعديلات'
+                : hasCustomer
+                  ? '✔ حفظ الطلب'
+                  : '✔ حفظ بدون زبون'}
           </button>
         </div>
+
+        {/* Virtual keyboard appears when an input is tapped */}
+        {kbField && (
+          <VirtualKeyboard
+            mode={kbMode}
+            onKey={kbAppend}
+            onBackspace={kbBackspace}
+            onClose={() => setKbField(null)}
+          />
+        )}
       </div>
     )
   }
