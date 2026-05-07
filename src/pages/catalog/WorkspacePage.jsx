@@ -158,13 +158,16 @@ function useOrderSave({ profile }) {
         db.from('catalog_order_items').insert(
           items.map(b => {
             const np = priceOf(b), orig = b.product.sell_price, isNeg = np !== orig
+            const nameWithPartial = b.partial
+              ? `${b.product.name} (${b.partial.units}/${b.partial.packSize})`
+              : b.product.name
             return {
               order_id:       order.id,
               product_id:     b.product.id,
-              product_name:   b.product.name,
+              product_name:   nameWithPartial,
               unit_price:     np,
               original_price: orig,
-              negotiated:     isNeg,
+              negotiated:     isNeg || !!b.partial,
               price_diff:     +(np - orig).toFixed(2),
               quantity:       b.qty,
               total:          np * b.qty,
@@ -191,6 +194,101 @@ function useOrderSave({ profile }) {
   return { send, sending, total, count, items, customer, editingOrder }
 }
 
+// Detect the pack size from a product name. Handles:
+//   "أوني جاڤيل 1ل*18 وحدة"   → 18  (size*count + وحدة)
+//   "ألموندرا شوكولاتة 60وحدة" → 60  (count + وحدة)
+//   "أولا صلصة الطماطم 30*110غ" → 30  (count*sizeUnit)
+//   "أوريو 4*30 وحدة"          → 30  (count + وحدة wins over count*count)
+function detectPackSize(product) {
+  const name = product?.name || ''
+  // 1) Prefer the number that immediately precedes an explicit unit word — most reliable
+  const unitMatches = [...name.matchAll(/(\d+)\s*(?:وحدة|قطعة|حبة|عبوة|علبة)/g)]
+  if (unitMatches.length) {
+    const n = parseInt(unitMatches[unitMatches.length - 1][1], 10)
+    if (n > 1) return n
+  }
+  // 2) "[size]+[unit suffix]*[count]" — e.g., "100مل*24", "1ل*18"
+  const sizeStarCount = name.match(/\d+\s*(?:ل|كغ|غ|مل|سم|كلغ|gr|g)\s*[*×]\s*(\d+)/i)
+  if (sizeStarCount) {
+    const n = parseInt(sizeStarCount[1], 10)
+    if (n > 1) return n
+  }
+  // 3) "[count]*[size]+[unit suffix]" — e.g., "30*110غ", "24*500مل"
+  const countStarSize = name.match(/(\d+)\s*[*×]\s*\d+\s*(?:ل|كغ|غ|مل|سم|كلغ|gr|g)/i)
+  if (countStarSize) {
+    const n = parseInt(countStarSize[1], 10)
+    if (n > 1) return n
+  }
+  // 4) Fall back to last "*N" — but only if N is plausible (≤100) so we don't pick up gram values
+  const stars = [...name.matchAll(/[*×]\s*(\d+)/g)]
+  if (stars.length) {
+    const n = parseInt(stars[stars.length - 1][1], 10)
+    if (n > 1 && n <= 100) return n
+  }
+  return 0
+}
+
+// ── Pack split modal ───────────────────────────────────────────
+function PackSplitModal({ bagItem, onConfirm, onClose }) {
+  const packSize = bagItem.partial?.packSize || detectPackSize(bagItem.product)
+  const initialUnits = bagItem.partial?.units || Math.floor(packSize / 2) || 1
+  const [units, setUnits] = useState(initialUnits)
+  const unitPrice = bagItem.product.sell_price / packSize
+  const partialPrice = +(unitPrice * units).toFixed(2)
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-3"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="font-black text-base text-slate-900">✂ بيع جزئي</h2>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center text-lg leading-none">✕</button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="text-sm font-bold text-slate-700">{bagItem.product.name}</div>
+          <div className="text-[11px] text-slate-500">
+            العبوة الكاملة: <span className="font-black text-slate-700">{packSize}</span> وحدة بـ <span className="font-black text-slate-700">{fmt(bagItem.product.sell_price)}</span>
+            <br/>سعر الوحدة: <span className="font-black text-emerald-600">{fmt(unitPrice)}</span>
+          </div>
+
+          <div className="bg-slate-50 rounded-2xl p-4">
+            <div className="text-[11px] text-slate-500 text-center mb-2">عدد الوحدات</div>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => setUnits(u => Math.max(1, u - 1))}
+                className="w-10 h-10 bg-rose-100 hover:bg-rose-200 active:scale-90 text-rose-600 rounded-xl text-2xl font-black flex items-center justify-center leading-none transition">−</button>
+              <div className="text-center">
+                <div className="text-3xl font-black text-slate-900 leading-none">{units}<span className="text-base font-bold text-slate-400">/{packSize}</span></div>
+                <div className="text-[10px] text-slate-400 mt-1">وحدة</div>
+              </div>
+              <button onClick={() => setUnits(u => Math.min(packSize, u + 1))}
+                className="w-10 h-10 bg-emerald-100 hover:bg-emerald-200 active:scale-90 text-emerald-700 rounded-xl text-2xl font-black flex items-center justify-center leading-none transition">+</button>
+            </div>
+            <div className="text-center mt-3 pt-3 border-t border-slate-200">
+              <div className="text-[10px] text-slate-500">السعر</div>
+              <div className="text-2xl font-black text-emerald-600">{fmt(partialPrice)} <span className="text-xs font-normal text-slate-400">درهم</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 pb-4 pt-1 flex gap-2">
+          {bagItem.partial && (
+            <button onClick={() => { onConfirm(null); onClose() }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl text-xs transition">
+              ↺ كامل
+            </button>
+          )}
+          <button onClick={() => { onConfirm({ units, packSize }); onClose() }}
+            disabled={units < 1 || units > packSize}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-2.5 rounded-xl text-sm shadow-sm transition active:scale-95">
+            ✔ تأكيد
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Tab 1: السلة (live bag from store) ─────────────────────────
 function CartTab({ cur, profile }) {
   const navigate = useNavigate()
@@ -200,8 +298,12 @@ function CartTab({ cur, profile }) {
   const removeItem   = useBagStore(s => s.removeItem)
   const setNegPrice  = useBagStore(s => s.setNegPrice)
   const addItem      = useBagStore(s => s.addItem)
+  const setPartial   = useBagStore(s => s.setPartial)
   const clearBag     = useBagStore(s => s.clear)
   const setEditingOrder = useBagStore(s => s.setEditingOrder)
+
+  const [splitTargetId, setSplitTargetId] = useState(null)
+  const splitTarget = items.find(b => b.product.id === splitTargetId)
 
   const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
   const total   = items.reduce((s, b) => s + priceOf(b) * b.qty, 0)
@@ -252,9 +354,13 @@ function CartTab({ cur, profile }) {
         {items.map(b => {
           const negPrice = priceOf(b)
           const isNeg = negPrice !== b.product.sell_price
+          const detected = detectPackSize(b.product)
+          const canSplit = detected > 1 || !!b.partial
+          const partial = b.partial
           return (
             <div key={b.product.id}
               className={`flex items-center gap-3 px-3 py-3 rounded-2xl border bg-white shadow-sm ${
+                partial ? 'border-blue-200 bg-blue-50/40' :
                 isNeg ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200'
               }`}>
               <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -265,8 +371,20 @@ function CartTab({ cur, profile }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-800 truncate">{b.product.name}</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  × {b.qty} = <span className="font-bold text-rose-600">{fmt(negPrice * b.qty)} {cur}</span>
+                  {partial ? (
+                    <span className="text-blue-700 font-bold">✂ {partial.units}/{partial.packSize} وحدة</span>
+                  ) : (
+                    <>× {b.qty}</>
+                  )}
+                  {' = '}
+                  <span className="font-bold text-rose-600">{fmt(negPrice * b.qty)} {cur}</span>
                 </p>
+                {canSplit && (
+                  <button onClick={() => setSplitTargetId(b.product.id)}
+                    className="mt-1 inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md transition">
+                    ✂ {partial ? 'تعديل' : 'تقسيم'}
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => setNegPrice(b.product.id, Math.max(0, +(negPrice - 0.10).toFixed(2)))}
@@ -307,6 +425,14 @@ function CartTab({ cur, profile }) {
           {editingOrder ? '✔ متابعة' : '👤 اختر زبون'}
         </button>
       </div>
+
+      {splitTarget && (
+        <PackSplitModal
+          bagItem={splitTarget}
+          onConfirm={(p) => setPartial(splitTargetId, p)}
+          onClose={() => setSplitTargetId(null)}
+        />
+      )}
     </div>
   )
 }

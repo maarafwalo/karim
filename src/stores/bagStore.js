@@ -31,6 +31,21 @@ export const useBagStore = create(
         items: s.items.map(b => b.product.id === id ? { ...b, negotiatedPrice: parseFloat(price) || 0 } : b),
       })),
 
+      // Partial pack split: { units, packSize } — null clears it
+      setPartial: (id, partial) => set((s) => ({
+        items: s.items.map(b => {
+          if (b.product.id !== id) return b
+          if (!partial) {
+            // Restore full-pack price
+            const { partial: _omit, ...rest } = b
+            return { ...rest, negotiatedPrice: b.product.sell_price }
+          }
+          const ratio = partial.units / partial.packSize
+          const newPrice = +(b.product.sell_price * ratio).toFixed(2)
+          return { ...b, partial, negotiatedPrice: newPrice }
+        }),
+      })),
+
       clear: () => set({
         items: [],
         customer: { name: '', phone: '', address: '' },
