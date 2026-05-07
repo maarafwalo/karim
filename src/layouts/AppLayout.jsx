@@ -14,7 +14,7 @@ const NAV = [
   { path: '/pos',             label: 'POS',            icon: '🛒', roles: ['admin','cashier','store_manager'] },
   { path: '/customers',       label: 'الزبائن',        icon: '👤', roles: ['admin','cashier','delivery','store_manager'] },
   ...(!HIDE_CATALOG ? [{ path: '/catalog', label: 'كتالوج', icon: '📋', roles: ['admin'] }] : []),
-  { path: '/workspace',       label: 'ساحة',           icon: '🧰', roles: ['admin','vendor'] },
+  { path: '/workspace',       label: 'ساحة',           icon: '🧰', roles: ['admin'] },
   { path: '/expenses',        label: 'مصاريف',         icon: '💸', roles: ['admin','cashier','store_manager'] },
   { path: '/debt',            label: 'الديون',         icon: '⚖️', roles: ['admin','cashier','delivery','store_manager'] },
   { path: '/stock',           label: 'مخزن',           icon: '📦', roles: ['admin','stock_manager','assistant','store_manager'] },
@@ -148,11 +148,11 @@ export default function AppLayout() {
 
       {/* ── HORIZONTAL HEADER ── */}
       <header className="flex items-center gap-2 px-3 h-[54px] bg-[#1a56db] text-white z-40 flex-shrink-0 shadow-lg">
-        {/* Logo */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+        {/* Logo (click → home) */}
+        <button onClick={() => navigate('/')} className="flex items-center gap-1.5 flex-shrink-0 ml-2 hover:opacity-80 transition active:scale-95">
           <span className="text-xl">🏪</span>
           <span className="font-black text-base tracking-tight">{settings?.store_name || 'joud'}</span>
-        </div>
+        </button>
 
         {/* Nav items */}
         <nav className="flex gap-1 flex-1 overflow-x-auto">
