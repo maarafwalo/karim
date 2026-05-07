@@ -8,6 +8,7 @@ export const PAGES = [
   { key: 'expenses',     label: 'مصاريف',   icon: '💸' },
   { key: 'debt',         label: 'الديون',   icon: '⚖️' },
   { key: 'catalog',      label: 'كتالوج',   icon: '📋' },
+  { key: 'my-orders',    label: 'طلباتي',   icon: '🧾' },
   { key: 'stock',        label: 'مخزن',     icon: '📦' },
   { key: 'editing',      label: 'منتجات',   icon: '✏️' },
   { key: 'suppliers',    label: 'موردون',   icon: '🚚' },
@@ -27,7 +28,8 @@ const DEFAULT_PERMISSIONS = {
   },
   vendor: {
     pos: false, customers: true, expenses: false, debt: false,
-    catalog: true, stock: false, editing: false, suppliers: false, reports: false, surveillance: false,
+    catalog: true, 'my-orders': true,
+    stock: false, editing: false, suppliers: false, reports: false, surveillance: false,
   },
   store_manager: {
     pos: true, customers: true, expenses: true, debt: true,
@@ -56,7 +58,10 @@ export const usePermissionsStore = create(
       // Check if a role can access a page
       canAccess: (role, pageKey) => {
         if (role === 'admin') return true
-        return get().permissions[role]?.[pageKey] ?? false
+        const stored = get().permissions[role]?.[pageKey]
+        if (stored !== undefined) return stored
+        // Fallback for keys missing from persisted state (e.g. newly added pages)
+        return DEFAULT_PERMISSIONS[role]?.[pageKey] ?? false
       },
 
       // Get all pages a role can access

@@ -14,6 +14,7 @@ const NAV = [
   { path: '/pos',             label: 'POS',            icon: '🛒', roles: ['admin','cashier','store_manager'] },
   { path: '/customers',       label: 'الزبائن',        icon: '👤', roles: ['admin','cashier','vendor','delivery','store_manager'] },
   ...(!HIDE_CATALOG ? [{ path: '/catalog', label: 'كتالوج', icon: '📋', roles: ['admin','vendor'] }] : []),
+  { path: '/my-orders',       label: 'طلباتي',         icon: '🧾', roles: ['admin','vendor'] },
   { path: '/expenses',        label: 'مصاريف',         icon: '💸', roles: ['admin','cashier','store_manager'] },
   { path: '/debt',            label: 'الديون',         icon: '⚖️', roles: ['admin','cashier','delivery','store_manager'] },
   { path: '/stock',           label: 'مخزن',           icon: '📦', roles: ['admin','stock_manager','assistant','store_manager'] },
