@@ -491,7 +491,7 @@ function OrdersTab({ cur, profile }) {
 // ── Customer card (one unified entity) ─────────────────────────
 function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
   const [editing, setEditing]   = useState(false)
-  const [draft, setDraft]       = useState({ name: c.name, phone: c.phone || '', price_tier: c.price_tier || 'retail' })
+  const [draft, setDraft]       = useState({ name: c.name, phone: c.phone || '' })
   const [history, setHistory]   = useState({ invoices: [], payments: [], loaded: false })
   const [payAmt, setPayAmt]     = useState('')
   const [working, setWorking]   = useState(false)
@@ -520,7 +520,6 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
     const { data, error } = await supabase.from('customers').update({
       name: draft.name.trim(),
       phone: draft.phone.trim(),
-      price_tier: draft.price_tier,
     }).eq('id', c.id).select().single()
     setWorking(false)
     if (error) { toast.error('خطأ في الحفظ'); return }
@@ -544,12 +543,6 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
     if (upd) onChange(upd)
   }
 
-  const toggleTier = async () => {
-    const next = c.price_tier === 'wholesale' ? 'retail' : 'wholesale'
-    const { data } = await supabase.from('customers').update({ price_tier: next }).eq('id', c.id).select().single()
-    if (data) onChange(data)
-  }
-
   return (
     <div className={`bg-white border-2 rounded-2xl shadow-sm overflow-hidden transition ${
       expanded ? 'border-primary' : c.balance > 0 ? 'border-rose-200' : 'border-slate-200'
@@ -564,7 +557,6 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
         <div className="flex-1 text-right min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="font-black text-sm text-slate-900 truncate">{c.name}</p>
-            {c.price_tier === 'wholesale' && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">جملة</span>}
             {c.loyalty_pts > 0 && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-bold">⭐ {c.loyalty_pts}</span>}
           </div>
           {c.phone && <p className="text-[11px] text-slate-500 mt-0.5 ltr">{c.phone}</p>}
@@ -583,7 +575,7 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
       {expanded && (
         <div className="border-t border-slate-100 p-3 space-y-3 bg-slate-50/40">
           {/* Quick actions row */}
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {c.phone && (
               <a href={buildWhatsApp(c.phone, `مرحباً ${c.name}`)} target="_blank" rel="noreferrer"
                 className="flex flex-col items-center gap-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-xl transition">
@@ -603,11 +595,6 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
               <span className="text-base leading-none">✏</span>
               <span className="text-[10px] font-bold">{editing ? 'إلغاء' : 'تعديل'}</span>
             </button>
-            <button onClick={toggleTier}
-              className="flex flex-col items-center gap-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-xl transition">
-              <span className="text-base leading-none">{c.price_tier === 'wholesale' ? '🏷' : '🛒'}</span>
-              <span className="text-[10px] font-bold">{c.price_tier === 'wholesale' ? 'تجزئة' : 'جملة'}</span>
-            </button>
           </div>
 
           {/* Inline edit */}
@@ -617,11 +604,6 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete }) {
                 className="inp text-sm" placeholder="الاسم *" />
               <input value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
                 className="inp text-sm" placeholder="الهاتف" />
-              <select value={draft.price_tier} onChange={e => setDraft(d => ({ ...d, price_tier: e.target.value }))}
-                className="inp text-sm">
-                <option value="retail">سعر التجزئة</option>
-                <option value="wholesale">سعر الجملة</option>
-              </select>
               <button onClick={saveEdit} disabled={working}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-black py-2 rounded-lg">
                 {working ? '...' : '✔ حفظ'}
@@ -697,7 +679,7 @@ function CustomersTab({ cur }) {
   const [search, setSearch]       = useState('')
   const [loading, setLoading]     = useState(false)
   const [showAdd, setShowAdd]     = useState(false)
-  const [form, setForm]           = useState({ name: '', phone: '', price_tier: 'retail' })
+  const [form, setForm]           = useState({ name: '', phone: '' })
   const [filter, setFilter]       = useState('all')   // all | debt | wholesale | retail
   const [sort, setSort]           = useState('name')  // name | debt | recent
   const [expandedId, setExpandedId] = useState(null)
@@ -713,11 +695,11 @@ function CustomersTab({ cur }) {
   const save = async () => {
     if (!form.name.trim()) { toast.error('الاسم مطلوب'); return }
     const { data, error } = await supabase.from('customers').insert({
-      name: form.name.trim(), phone: form.phone.trim(), price_tier: form.price_tier,
+      name: form.name.trim(), phone: form.phone.trim(),
     }).select().single()
     if (error) { toast.error('خطأ في الحفظ'); return }
     toast.success('تم إضافة الزبون')
-    setForm({ name: '', phone: '', price_tier: 'retail' })
+    setForm({ name: '', phone: '' })
     setShowAdd(false)
     if (data) {
       setCustomers(prev => [data, ...prev])
@@ -739,9 +721,7 @@ function CustomersTab({ cur }) {
     let list = customers.filter(c =>
       !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)
     )
-    if (filter === 'debt')      list = list.filter(c => (c.balance || 0) > 0)
-    if (filter === 'wholesale') list = list.filter(c => c.price_tier === 'wholesale')
-    if (filter === 'retail')    list = list.filter(c => c.price_tier !== 'wholesale')
+    if (filter === 'debt') list = list.filter(c => (c.balance || 0) > 0)
 
     if (sort === 'debt')   list = [...list].sort((a, b) => (b.balance || 0) - (a.balance || 0))
     if (sort === 'recent') list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -786,10 +766,8 @@ function CustomersTab({ cur }) {
         {/* Filter chips */}
         <div className="flex items-center gap-1.5 mt-2 overflow-x-auto">
           {[
-            { key: 'all',       lbl: `الكل (${stats.total})` },
-            { key: 'debt',      lbl: `مديون (${stats.debtors})` },
-            { key: 'wholesale', lbl: 'جملة' },
-            { key: 'retail',    lbl: 'تجزئة' },
+            { key: 'all',  lbl: `الكل (${stats.total})` },
+            { key: 'debt', lbl: `مديون (${stats.debtors})` },
           ].map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition flex-shrink-0 ${
@@ -813,11 +791,6 @@ function CustomersTab({ cur }) {
               className="inp text-sm" placeholder="الاسم *" />
             <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
               className="inp text-sm" placeholder="الهاتف" type="tel" />
-            <select value={form.price_tier} onChange={e => setForm(f => ({ ...f, price_tier: e.target.value }))}
-              className="inp text-sm">
-              <option value="retail">سعر التجزئة</option>
-              <option value="wholesale">سعر الجملة</option>
-            </select>
             <button onClick={save} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black py-2 rounded-lg">✔ حفظ</button>
           </div>
         )}
