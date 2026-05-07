@@ -7,11 +7,12 @@ import { fmt, generateOrderNumber } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
 // ── Virtual Keyboard (Arabic + numbers, for touch devices) ────
+// Order matches user request: دجحخهعغفقثصضشسيبلاتنمكطذظزوةىلارؤءئ
 const AR_LAYOUT = [
   ['1','2','3','4','5','6','7','8','9','0'],
-  ['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],
+  ['د','ج','ح','خ','ه','ع','غ','ف','ق','ث','ص','ض'],
   ['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],
-  ['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],
+  ['ذ','ظ','ز','و','ة','ى','لا','ر','ؤ','ء','ئ'],
 ]
 const NUM_LAYOUT = [
   ['1','2','3'],
@@ -29,17 +30,21 @@ function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
         <span className="text-white text-xs font-bold">{mode === 'num' ? 'أرقام' : 'عربي'}</span>
         <button onMouseDown={e => { e.preventDefault(); onClose() }} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg text-sm">✕ إغلاق</button>
       </div>
-      <div className="space-y-1">
-        {layout.map((row, ri) => (
-          <div key={ri} className={`flex gap-1 justify-center ${mode === 'num' ? 'max-w-xs mx-auto' : ''}`}>
-            {row.map((k, ki) => (
-              <button key={ki} onMouseDown={e => { e.preventDefault(); onKey(k) }}
-                className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-black rounded-md flex-1 py-3 min-w-[28px] text-xl shadow font-arabic">
-                {k}
-              </button>
-            ))}
-          </div>
-        ))}
+      <div className="space-y-1" dir={mode === 'num' ? 'ltr' : 'rtl'}>
+        {layout.map((row, ri) => {
+          // First row in AR mode is digits — keep LTR, otherwise RTL so first letter shows on right
+          const rowDir = (mode === 'ar' && ri === 0) ? 'ltr' : (mode === 'num' ? 'ltr' : 'rtl')
+          return (
+            <div key={ri} dir={rowDir} className={`flex gap-1 justify-center ${mode === 'num' ? 'max-w-xs mx-auto' : ''}`}>
+              {row.map((k, ki) => (
+                <button key={ki} onMouseDown={e => { e.preventDefault(); onKey(k) }}
+                  className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-black rounded-md flex-1 py-3 min-w-[28px] text-xl shadow font-arabic">
+                  {k}
+                </button>
+              ))}
+            </div>
+          )
+        })}
         <div className="flex gap-1 justify-center">
           <button onMouseDown={e => { e.preventDefault(); onKey(' ') }}
             className="bg-white hover:bg-gray-200 active:bg-blue-200 text-gray-900 font-bold rounded-md py-3 px-12 text-base shadow font-arabic">
