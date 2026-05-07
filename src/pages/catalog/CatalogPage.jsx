@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
@@ -212,6 +213,7 @@ export default function CatalogPage() {
   const { categories, filteredProducts, activeCat, setActiveCat, searchQ, setSearchQ, loading } = useProductsStore()
   const { profile } = useAuthStore()
   const { settings } = useSettingsStore()
+  const navigate = useNavigate()
 
   // Bag state lives in zustand so the workspace page can read/edit it too
   const bag          = useBagStore(s => s.items)
@@ -552,7 +554,7 @@ export default function CatalogPage() {
 
       {/* Floating bag button */}
       {bagCount > 0 && (
-        <button onClick={() => setShowBag(true)}
+        <button onClick={() => isPartner ? setShowBag(true) : navigate('/workspace#cart')}
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 font-black px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 z-30 text-white ${
             isPartner ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary hover:bg-primary-dark'
           }`}>
