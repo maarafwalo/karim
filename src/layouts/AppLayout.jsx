@@ -20,11 +20,9 @@ const NAV = [
   { path: '/suppliers',       label: 'موردون',         icon: '🚚', roles: ['admin','stock_manager'] },
   { path: '/reports',         label: 'تقارير',         icon: '📊', roles: ['admin','store_manager'] },
   { path: '/partner-account',  label: 'حساب سعيد',       icon: '🤝', roles: ['admin'] },
-  { path: '/partner-orders',   label: 'طلبات الشركاء',   icon: '📋', roles: ['admin','stock_manager'] },
   { path: '/partner-catalog',  label: 'طلب بضاعة',       icon: '🛒', roles: ['trusted_partner'] },
   { path: '/my-account',       label: 'حسابي',            icon: '⚖️', roles: ['trusted_partner'] },
   { path: '/admin',           label: 'إدارة',          icon: '⚙️', roles: ['admin'] },
-  { path: '/surveillance',    label: 'مراقبة',         icon: '📹', roles: ['admin'] },
 ]
 
 // ── Persistent mini camera overlay ────────────────────────────
