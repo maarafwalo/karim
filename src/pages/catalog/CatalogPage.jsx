@@ -389,165 +389,119 @@ export default function CatalogPage() {
         </button>
       )}
 
-      {/* Bag modal — cloud design */}
+      {/* Bag modal — clean design */}
       {showBag && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in"
-          style={{
-            background: 'radial-gradient(circle at 50% 100%, rgba(30,41,59,.55), rgba(15,23,42,.65))',
-            paddingBottom: activePriceId !== null ? '340px' : '0',
-            transition: 'padding-bottom .25s ease',
-          }}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 animate-fade-in"
+          style={{ paddingBottom: activePriceId !== null ? '300px' : '0', transition: 'padding-bottom .2s' }}
           onClick={() => setShowBag(false)}
         >
           <div
-            className="w-full max-w-lg flex flex-col animate-slide-up"
+            className="w-full max-w-md bg-white flex flex-col animate-slide-up"
             style={{
-              maxHeight: activePriceId !== null ? 'calc(100vh - 360px)' : '88vh',
-              background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-              borderTopLeftRadius: 28,
-              borderTopRightRadius: 28,
-              boxShadow: '0 -20px 60px rgba(15,23,42,.25)',
-              transition: 'max-height .25s ease',
+              maxHeight: activePriceId !== null ? 'calc(100vh - 320px)' : '92vh',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              transition: 'max-height .2s',
             }}
             onClick={e=>e.stopPropagation()}
           >
-            {/* Drag handle */}
-            <div className="flex justify-center pt-2.5 pb-1">
-              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
-            </div>
-
             {/* Header */}
-            <div className="flex justify-between items-center px-5 pb-3 pt-1">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🛍️</span>
-                <div>
-                  <h2 className="font-black text-lg leading-tight">سلة الطلب</h2>
-                  <p className="text-xs text-slate-500">{bagCount} منتج</p>
-                </div>
+            <div className="px-5 pt-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-slate-900">سلة الطلب</h2>
+                <button onClick={() => setShowBag(false)}
+                  className="w-8 h-8 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-400 flex items-center justify-center text-lg leading-none transition">
+                  ✕
+                </button>
               </div>
-              <button onClick={() => setShowBag(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition active:scale-95">
-                <span className="text-base">✕</span>
-              </button>
+              <p className="text-xs text-slate-500 mt-0.5">{bagCount} منتج · انقر السعر للتعديل</p>
             </div>
 
-            {/* Items */}
-            <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-2.5">
+            {/* Items list */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
               {bag.map(b => {
                 const negPrice = priceOf(b)
                 const isNeg = negPrice !== b.product.sell_price
                 const isActive = activePriceId === b.product.id
                 return (
                   <div key={b.product.id}
-                    className="rounded-2xl p-3 transition"
-                    style={{
-                      background: isActive
-                        ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)'
-                        : isNeg
-                          ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
-                          : '#ffffff',
-                      border: isActive ? '1.5px solid #3b82f6' : isNeg ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
-                      boxShadow: isActive ? '0 4px 16px rgba(59,130,246,.2)' : '0 1px 3px rgba(15,23,42,.04)',
-                    }}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-2xl transition border ${
+                      isActive ? 'bg-blue-50 border-blue-300' :
+                      isNeg ? 'bg-amber-50/60 border-amber-200' :
+                      'bg-slate-50 border-transparent hover:bg-slate-100'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
-                        {b.product.image_url
-                          ? <img src={b.product.image_url} alt="" className="w-full h-full object-contain p-1" />
-                          : <span className="text-2xl">{b.product.emoji}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate text-slate-800">{b.product.name}</p>
-                        <p className="text-xs mt-0.5 flex items-center gap-1.5">
-                          {isNeg && <span className="line-through text-slate-400">{fmt(b.product.sell_price)}</span>}
-                          <span className={isNeg ? 'text-amber-700 font-black' : 'text-slate-600 font-bold'}>{fmt(negPrice)}</span>
-                          <span className="text-slate-400">×</span>
-                          <span className="font-bold text-slate-700">{b.qty}</span>
-                          <span className="text-slate-400">=</span>
-                          <span className="font-black text-rose-600">{fmt(negPrice * b.qty)}</span>
-                          <span className="text-[10px] text-slate-400">{cur}</span>
-                        </p>
-                      </div>
-                      <button onClick={() => removeFromBag(b.product.id)}
-                        className="w-8 h-8 rounded-full bg-white text-rose-500 hover:bg-rose-50 active:scale-90 flex items-center justify-center text-sm transition shadow-sm">
-                        ✕
-                      </button>
+                    {/* Image */}
+                    <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+                      {b.product.image_url
+                        ? <img src={b.product.image_url} alt="" className="w-full h-full object-contain p-0.5" />
+                        : <span className="text-2xl">{b.product.emoji || '📦'}</span>}
                     </div>
 
-                    {/* Price negotiation pill */}
-                    <div className="flex items-center gap-2 mt-2.5">
-                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">💰 السعر</span>
-                      <button
-                        onClick={() => { setActivePriceId(b.product.id); setActiveField(null) }}
-                        className={`flex-1 text-base font-black py-2 px-3 rounded-xl transition text-center ${
-                          isActive
-                            ? 'bg-white text-blue-700 ring-2 ring-blue-400'
-                            : isNeg
-                              ? 'bg-white text-amber-700 ring-1 ring-amber-300'
-                              : 'bg-slate-50 text-slate-700 hover:bg-white'
-                        }`}
-                        style={{ boxShadow: isActive ? '0 2px 8px rgba(59,130,246,.2)' : 'none' }}
-                      >
-                        {b._priceStr ?? fmt(negPrice)}
-                        <span className="text-[10px] text-slate-400 font-normal mr-1">{cur}</span>
-                      </button>
-                      {isNeg && (
-                        <button onClick={() => setBag(prev => prev.map(x => x.product.id === b.product.id ? { ...x, negotiatedPrice: b.product.sell_price, _priceStr: undefined } : x))}
-                          className="text-amber-600 hover:bg-amber-50 active:scale-90 px-2 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition">↺</button>
-                      )}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate leading-tight">{b.product.name}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        × {b.qty} = <span className="font-bold text-rose-600">{fmt(negPrice * b.qty)} {cur}</span>
+                      </p>
                     </div>
+
+                    {/* Price (tap to edit) */}
+                    <button
+                      onClick={() => { setActivePriceId(b.product.id); setActiveField(null) }}
+                      className={`flex flex-col items-center px-3 py-2 rounded-xl border-2 min-w-[90px] transition active:scale-95 ${
+                        isActive ? 'bg-white border-blue-500 shadow-md' :
+                        isNeg ? 'bg-white border-amber-400' :
+                        'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {isNeg && !isActive && (
+                        <span className="text-[9px] line-through text-slate-400">{fmt(b.product.sell_price)}</span>
+                      )}
+                      <span className={`text-base font-black leading-none ${
+                        isActive ? 'text-blue-700' : isNeg ? 'text-amber-700' : 'text-slate-800'
+                      }`}>
+                        {b._priceStr ?? fmt(negPrice)}
+                      </span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">{cur}</span>
+                    </button>
+
+                    {/* Remove */}
+                    <button onClick={() => removeFromBag(b.product.id)}
+                      className="w-8 h-8 rounded-full text-slate-300 hover:bg-rose-50 hover:text-rose-500 active:scale-90 flex items-center justify-center transition flex-shrink-0">
+                      🗑
+                    </button>
                   </div>
                 )
               })}
             </div>
 
             {/* Footer */}
-            <div
-              className="px-5 pt-3 pb-4"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, #f8fafc 30%)',
-                borderTop: '1px solid rgba(226,232,240,.5)',
-              }}
-            >
+            <div className="px-5 pt-3 pb-5 border-t border-slate-100">
               {hasNegotiated && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
-                  <span>⚠</span>
-                  <span>الإدارة سترى أسعار التفاوض على هذا الطلب</span>
+                <div className="flex items-center gap-2 bg-amber-50 text-amber-800 text-xs font-bold rounded-xl px-3 py-2 mb-3">
+                  <span>ℹ</span>
+                  <span>أسعار التفاوض ستظهر للإدارة</span>
                 </div>
               )}
               <div className="flex items-baseline justify-between mb-3">
-                <span className="text-sm text-slate-500 font-bold">الإجمالي</span>
-                <span className={`text-2xl font-black ${isPartner ? 'text-amber-600' : 'text-blue-700'}`}>
-                  {fmt(bagTotal)} <span className="text-sm text-slate-500 font-normal">{cur}</span>
+                <span className="text-sm font-bold text-slate-500">الإجمالي</span>
+                <span className={`text-2xl font-black ${isPartner ? 'text-amber-600' : 'text-slate-900'}`}>
+                  {fmt(bagTotal)}
+                  <span className="text-xs text-slate-400 font-normal mr-1">{cur}</span>
                 </span>
               </div>
               {isPartner ? (
-                <button
-                  onClick={submitPartnerRequest}
-                  disabled={sending}
-                  className="w-full text-white font-black py-3.5 rounded-2xl text-base transition active:scale-[.98] disabled:opacity-60"
-                  style={{
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                    boxShadow: '0 6px 20px rgba(217,119,6,.35)',
-                  }}
-                >
+                <button onClick={submitPartnerRequest} disabled={sending}
+                  className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl text-base transition active:scale-[.98]">
                   {sending ? '⏳ جارٍ الإرسال...' : '🤝 تقديم طلب أخذ بضاعة'}
                 </button>
               ) : (
                 <button onClick={() => { setShowBag(false); setShowOrder(true) }}
-                  className="w-full text-white font-black py-3.5 rounded-2xl text-base transition active:scale-[.98]"
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    boxShadow: '0 6px 20px rgba(5,150,105,.35)',
-                  }}>
-                  📋 حفظ الفاتورة وإرسالها للإدارة
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3.5 rounded-2xl text-base transition active:scale-[.98]">
+                  متابعة لإدخال بيانات الزبون ←
                 </button>
-              )}
-              {isPartner && (
-                <p className="text-xs text-amber-600 text-center mt-2 font-bold">
-                  سيُرسَل الطلب لعمران للتأكيد قبل إخراج البضاعة
-                </p>
               )}
             </div>
           </div>
