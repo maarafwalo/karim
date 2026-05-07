@@ -128,15 +128,23 @@ export default function CatalogPage() {
     setBag(prev => {
       const ex = prev.find(b => b.product.id === product.id)
       if (ex) return prev.map(b => b.product.id === product.id ? { ...b, qty: b.qty+1 } : b)
-      return [...prev, { product, qty: 1 }]
+      // negotiatedPrice = current price (may be changed in bag); originalPrice = catalog reference
+      return [...prev, { product, qty: 1, negotiatedPrice: product.sell_price }]
     })
     toast.success(`${product.name} ✔`, { duration: 600, style: { fontSize: '0.8rem' } })
   }
 
   const removeFromBag = (id) => setBag(prev => prev.filter(b => b.product.id !== id))
 
-  const bagTotal = bag.reduce((s, b) => s + b.product.sell_price * b.qty, 0)
+  const setNegotiatedPrice = (id, newPrice) => {
+    const p = parseFloat(newPrice) || 0
+    setBag(prev => prev.map(b => b.product.id === id ? { ...b, negotiatedPrice: p } : b))
+  }
+
+  const priceOf = (b) => (typeof b.negotiatedPrice === 'number' ? b.negotiatedPrice : b.product.sell_price)
+  const bagTotal = bag.reduce((s, b) => s + priceOf(b) * b.qty, 0)
   const bagCount = bag.reduce((s, b) => s + b.qty, 0)
+  const hasNegotiated = bag.some(b => priceOf(b) !== b.product.sell_price)
 
   const isPartner = profile?.role === 'trusted_partner'
 
@@ -219,14 +227,22 @@ export default function CatalogPage() {
       if (order) {
         const { error: itemsErr } = await withTimeout(
           db.from('catalog_order_items').insert(
-            bag.map(b => ({
-              order_id:     order.id,
-              product_id:   b.product.id,
-              product_name: b.product.name,
-              unit_price:   b.product.sell_price,
-              quantity:     b.qty,
-              total:        b.product.sell_price * b.qty,
-            }))
+            bag.map(b => {
+              const negPrice = priceOf(b)
+              const orig = b.product.sell_price
+              const isNeg = negPrice !== orig
+              return {
+                order_id:     order.id,
+                product_id:   b.product.id,
+                product_name: b.product.name,
+                unit_price:   negPrice,                    // actual sell price (may be negotiated)
+                original_price: orig,                       // catalog reference price
+                negotiated:   isNeg,                        // boolean flag for admin filtering
+                price_diff:   +(negPrice - orig).toFixed(2),// + or - vs catalog
+                quantity:     b.qty,
+                total:        negPrice * b.qty,
+              }
+            })
           )
         )
         if (itemsErr) throw itemsErr
@@ -335,20 +351,48 @@ export default function CatalogPage() {
               <button onClick={() => setShowBag(false)} className="text-gray-400 text-xl">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {bag.map(b => (
-                <div key={b.product.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-2">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
-                    {b.product.image_url ? <img src={b.product.image_url} alt="" className="w-full h-full object-contain" /> : <span className="text-xl">{b.product.emoji}</span>}
+              {bag.map(b => {
+                const negPrice = priceOf(b)
+                const isNeg = negPrice !== b.product.sell_price
+                return (
+                <div key={b.product.id} className="bg-gray-50 rounded-xl p-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {b.product.image_url ? <img src={b.product.image_url} alt="" className="w-full h-full object-contain" /> : <span className="text-xl">{b.product.emoji}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate">{b.product.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {isNeg && <span className="line-through ml-1">{fmt(b.product.sell_price)}</span>}
+                        <span className={isNeg ? 'text-amber-600 font-bold' : ''}>{fmt(negPrice)}</span> × {b.qty}
+                        {' = '}
+                        <span className="text-red-600 font-bold">{fmt(negPrice * b.qty)} {cur}</span>
+                      </p>
+                    </div>
+                    <button onClick={() => removeFromBag(b.product.id)} className="text-red-400 text-sm hover:opacity-70">✕</button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate">{b.product.name}</p>
-                    <p className="text-xs text-slate-400">{fmt(b.product.sell_price)} × {b.qty} = <span className="text-red-600 font-bold">{fmt(b.product.sell_price*b.qty)} {cur}</span></p>
+                  {/* Price negotiation row (vendor only) */}
+                  <div className="flex items-center gap-2 mt-2 pr-12">
+                    <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">سعر التفاوض:</label>
+                    <input type="number" step="0.01" min="0"
+                      value={negPrice}
+                      onChange={e => setNegotiatedPrice(b.product.id, e.target.value)}
+                      className={`flex-1 text-xs px-2 py-1 rounded-md border bg-white ${isNeg ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'}`}
+                    />
+                    {isNeg && (
+                      <button onClick={() => setNegotiatedPrice(b.product.id, b.product.sell_price)}
+                        className="text-[10px] text-amber-600 hover:underline whitespace-nowrap">↺ افتراضي</button>
+                    )}
                   </div>
-                  <button onClick={() => removeFromBag(b.product.id)} className="text-red-400 text-sm hover:opacity-70">✕</button>
                 </div>
-              ))}
+              )})}
             </div>
             <div className="p-4 border-t bg-gray-50">
+              {hasNegotiated && (
+                <div className="bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold rounded-lg p-2 mb-2 text-center">
+                  ⚠ هذا الطلب فيه أسعار متفاوضة — ستظهر للإدارة
+                </div>
+              )}
               <div className="flex justify-between font-black text-lg mb-3">
                 <span>الإجمالي</span>
                 <span className={isPartner ? 'text-amber-600' : 'text-primary'}>{fmt(bagTotal)} {cur}</span>
