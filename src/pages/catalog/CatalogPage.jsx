@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
@@ -220,6 +220,31 @@ export default function CatalogPage() {
   const [activeField, setActiveField]   = useState(null)  // 'name'|'phone'|'address'|null
   const [activePriceId, setActivePriceId] = useState(null) // bag item id being edited
   const [savedInvoice, setSavedInvoice]   = useState(null) // shown after successful save
+
+  // Existing customer picker
+  const [customers, setCustomers]         = useState([])
+  const [pickerOpen, setPickerOpen]       = useState(false)
+  const [pickerQ, setPickerQ]             = useState('')
+
+  useEffect(() => {
+    if (!showOrder || customers.length) return
+    supabase.from('customers').select('id,name,phone').order('name').then(({ data }) => {
+      if (data) setCustomers(data)
+    })
+  }, [showOrder])
+
+  const pickCustomer = (c) => {
+    setCustomer(cur => ({ ...cur, name: c.name || '', phone: c.phone || '' }))
+    setPickerOpen(false)
+    setPickerQ('')
+    setActiveField(null)
+  }
+
+  const filteredCustomers = pickerQ
+    ? customers.filter(c =>
+        (c.name || '').toLowerCase().includes(pickerQ.toLowerCase()) ||
+        (c.phone || '').includes(pickerQ))
+    : customers
 
   const kbInsert = (ch) => {
     if (activePriceId !== null) {
@@ -591,6 +616,47 @@ export default function CatalogPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 pt-10 animate-fade-in" style={{ paddingBottom: activeField ? '320px' : '16px' }}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-slide-up">
             <h2 className="font-black text-lg mb-4">👤 معلومات الزبون</h2>
+
+            {/* Existing customer picker */}
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => setPickerOpen(o => !o)}
+                className="w-full flex items-center justify-between bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-3 rounded-xl text-sm transition"
+              >
+                <span>📇 اختر زبون موجود</span>
+                <span className="text-xs">{pickerOpen ? '▲' : '▼'}</span>
+              </button>
+              {pickerOpen && (
+                <div className="mt-2 border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+                  <input
+                    value={pickerQ}
+                    onChange={e => setPickerQ(e.target.value)}
+                    onFocus={() => setActiveField(null)}
+                    placeholder="🔍 بحث بالاسم أو الهاتف..."
+                    className="w-full px-3 py-2 text-sm font-arabic bg-white border-b border-slate-200 focus:outline-none"
+                  />
+                  <div className="max-h-44 overflow-y-auto">
+                    {filteredCustomers.length === 0 ? (
+                      <div className="text-center text-slate-400 text-xs py-4">لا توجد نتائج</div>
+                    ) : (
+                      filteredCustomers.slice(0, 50).map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => pickCustomer(c)}
+                          className="w-full text-right px-3 py-2 hover:bg-indigo-50 active:bg-indigo-100 border-b border-slate-100 last:border-0 transition"
+                        >
+                          <div className="font-bold text-sm text-slate-800 font-arabic">{c.name || '—'}</div>
+                          {c.phone && <div className="text-[11px] text-slate-500 ltr">{c.phone}</div>}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-bold block mb-1">الاسم *</label>
