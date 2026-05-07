@@ -79,10 +79,18 @@ function VirtualKeyboard({ onKey, onBackspace, onClose, mode = 'ar' }) {
 }
 
 // ── Product Card ──────────────────────────────────────────────
-function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
+const PRICE_STEP = 0.50  // dirham step for negotiation
+
+function ProductCard({ p, inBag, cur, onAdd, onInc, onDec, onPriceChange }) {
   const [imgError, setImgError] = useState(false)
+  const negPrice    = inBag ? (typeof inBag.negotiatedPrice === 'number' ? inBag.negotiatedPrice : p.sell_price) : p.sell_price
+  const isNeg       = inBag && negPrice !== p.sell_price
+  const priceUp     = (e) => { e.stopPropagation(); onPriceChange(+(negPrice + PRICE_STEP).toFixed(2)) }
+  const priceDown   = (e) => { e.stopPropagation(); onPriceChange(Math.max(0, +(negPrice - PRICE_STEP).toFixed(2))) }
+  const priceReset  = (e) => { e.stopPropagation(); onPriceChange(p.sell_price) }
+
   return (
-    <div className={`bg-white rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg border-2 ${inBag ? 'border-primary shadow-md' : 'border-gray-100 shadow-sm'}`}>
+    <div className={`bg-white rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg border-2 ${inBag ? (isNeg ? 'border-amber-400 shadow-md' : 'border-primary shadow-md') : 'border-gray-100 shadow-sm'}`}>
       {/* Image area */}
       <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 130 }}>
         {p.image_url && !imgError
@@ -103,20 +111,42 @@ function ProductCard({ p, inBag, cur, onAdd, onInc, onDec }) {
           {p.name}
         </p>
         {p.size && <p className="text-[10px] text-slate-400 leading-tight">{p.size}</p>}
-        <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-gray-100">
-          <span className="text-sm font-black text-red-600 leading-none">{fmt(p.sell_price)} <span className="text-[9px] text-slate-400 font-normal">{cur}</span></span>
-          {inBag ? (
-            <div className="flex items-center gap-0.5">
-              <button onClick={onDec} className="w-6 h-6 bg-gray-100 rounded-md text-base font-black hover:bg-gray-200 flex items-center justify-center leading-none">−</button>
-              <span className="text-xs font-black text-primary w-5 text-center">{inBag.qty}</span>
-              <button onClick={onInc} className="w-6 h-6 bg-primary text-white rounded-md text-base font-black flex items-center justify-center leading-none">+</button>
+
+        {inBag ? (
+          <div className="mt-auto pt-1 border-t border-gray-100 space-y-1">
+            {/* Price stepper row */}
+            <div className="flex items-center justify-between gap-1">
+              <button onClick={priceDown}
+                className="w-6 h-6 bg-rose-100 hover:bg-rose-200 active:scale-90 text-rose-600 rounded-md text-base font-black flex items-center justify-center leading-none transition">−</button>
+              <div className="flex flex-col items-center flex-1 leading-none">
+                {isNeg && <span className="text-[8px] line-through text-slate-400">{fmt(p.sell_price)}</span>}
+                <span className={`text-sm font-black ${isNeg ? 'text-amber-600' : 'text-red-600'}`}>{fmt(negPrice)}</span>
+                <span className="text-[8px] text-slate-400">{cur}</span>
+              </div>
+              <button onClick={priceUp}
+                className="w-6 h-6 bg-emerald-100 hover:bg-emerald-200 active:scale-90 text-emerald-700 rounded-md text-base font-black flex items-center justify-center leading-none transition">+</button>
             </div>
-          ) : (
+            {/* Reset price + qty stepper row */}
+            <div className="flex items-center justify-between gap-1">
+              {isNeg ? (
+                <button onClick={priceReset}
+                  className="text-[9px] text-amber-600 hover:underline font-bold whitespace-nowrap">↺ افتراضي</button>
+              ) : <span className="text-[9px] text-slate-300">السعر الأصلي</span>}
+              <div className="flex items-center gap-0.5">
+                <button onClick={(e)=>{e.stopPropagation();onDec()}} className="w-6 h-6 bg-gray-100 hover:bg-gray-200 active:scale-90 rounded-md text-base font-black flex items-center justify-center leading-none transition">−</button>
+                <span className="text-xs font-black text-primary w-5 text-center">{inBag.qty}</span>
+                <button onClick={(e)=>{e.stopPropagation();onInc()}} className="w-6 h-6 bg-primary hover:opacity-90 active:scale-90 text-white rounded-md text-base font-black flex items-center justify-center leading-none transition">+</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-gray-100">
+            <span className="text-sm font-black text-red-600 leading-none">{fmt(p.sell_price)} <span className="text-[9px] text-slate-400 font-normal">{cur}</span></span>
             <button onClick={onAdd} className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-2 py-1 text-[10px] font-bold transition-colors leading-none">
               + إضافة
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -134,6 +164,7 @@ export default function CatalogPage() {
   const [sending, setSending]   = useState(false)
   const [activeField, setActiveField]   = useState(null)  // 'name'|'phone'|'address'|null
   const [activePriceId, setActivePriceId] = useState(null) // bag item id being edited
+  const [savedInvoice, setSavedInvoice]   = useState(null) // shown after successful save
 
   const kbInsert = (ch) => {
     if (activePriceId !== null) {
@@ -372,6 +403,7 @@ export default function CatalogPage() {
                   onAdd={() => addToBag(p)}
                   onInc={() => addToBag(p)}
                   onDec={() => setBag(prev => prev.map(b => b.product.id===p.id ? {...b,qty:b.qty-1} : b).filter(b=>b.qty>0))}
+                  onPriceChange={(newPrice) => setNegotiatedPrice(p.id, newPrice)}
                 />
               )
             })}
