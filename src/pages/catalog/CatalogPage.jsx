@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { fmt, generateOrderNumber } from '../../lib/utils.js'
+import { useBagStore } from '../../stores/bagStore.js'
 import toast from 'react-hot-toast'
 
 // ── Virtual Keyboard (Arabic + numbers, for touch devices) ────
@@ -212,9 +213,17 @@ export default function CatalogPage() {
   const { profile } = useAuthStore()
   const { settings } = useSettingsStore()
 
-  const [bag, setBag]           = useState([])
+  // Bag state lives in zustand so the workspace page can read/edit it too
+  const bag          = useBagStore(s => s.items)
+  const customer     = useBagStore(s => s.customer)
+  const editingOrder = useBagStore(s => s.editingOrder)
+  const _setItems    = useBagStore(s => s.setItems)
+  const _setCust     = useBagStore(s => s.setCustomer)
+  const setEditingOrder = useBagStore(s => s.setEditingOrder)
+  const setBag      = (next) => _setItems(typeof next === 'function' ? next(useBagStore.getState().items) : next)
+  const setCustomer = (next) => _setCust(typeof next === 'function' ? next(useBagStore.getState().customer) : next)
+
   const [showBag, setShowBag]   = useState(false)
-  const [customer, setCustomer] = useState({ name:'', phone:'', address:'' })
   const [showOrder, setShowOrder] = useState(false)
   const [sending, setSending]   = useState(false)
   const [activeField, setActiveField]   = useState(null)  // 'name'|'phone'|'address'|null
@@ -226,8 +235,15 @@ export default function CatalogPage() {
   const [pickerOpen, setPickerOpen]       = useState(false)
   const [pickerQ, setPickerQ]             = useState('')
 
-  // Editing handoff from MyOrdersPage
-  const [editingOrder, setEditingOrder]   = useState(null) // { id, order_number }
+  // Open order modal when workspace's cart sends us here with ?checkout=1
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === '1' && bag.length > 0) {
+      setShowOrder(true)
+      // Clean the URL so the modal doesn't re-open on every render
+      window.history.replaceState({}, '', '/catalog')
+    }
+  }, [bag.length])
 
   useEffect(() => {
     const raw = sessionStorage.getItem('catalog_edit_handoff')

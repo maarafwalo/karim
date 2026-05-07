@@ -8,7 +8,7 @@ export const PAGES = [
   { key: 'expenses',     label: 'مصاريف',   icon: '💸' },
   { key: 'debt',         label: 'الديون',   icon: '⚖️' },
   { key: 'catalog',      label: 'كتالوج',   icon: '📋' },
-  { key: 'my-orders',    label: 'طلباتي',   icon: '🧾' },
+  { key: 'workspace',    label: 'ساحة',     icon: '🧰' },
   { key: 'stock',        label: 'مخزن',     icon: '📦' },
   { key: 'editing',      label: 'منتجات',   icon: '✏️' },
   { key: 'suppliers',    label: 'موردون',   icon: '🚚' },
@@ -27,8 +27,8 @@ const DEFAULT_PERMISSIONS = {
     catalog: false, stock: true, editing: true, suppliers: true, reports: false, surveillance: false,
   },
   vendor: {
-    pos: false, customers: true, expenses: false, debt: false,
-    catalog: true, 'my-orders': true,
+    pos: false, customers: false, expenses: false, debt: false,
+    catalog: true, workspace: true,
     stock: false, editing: false, suppliers: false, reports: false, surveillance: false,
   },
   store_manager: {

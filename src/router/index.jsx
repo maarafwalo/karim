@@ -6,7 +6,7 @@ import LoginPage          from '../pages/LoginPage.jsx'
 import UnauthorizedPage   from '../pages/UnauthorizedPage.jsx'
 import POSPage            from '../pages/pos/POSPage.jsx'
 import CatalogPage        from '../pages/catalog/CatalogPage.jsx'
-import MyOrdersPage       from '../pages/catalog/MyOrdersPage.jsx'
+import WorkspacePage      from '../pages/catalog/WorkspacePage.jsx'
 import StockPage          from '../pages/stock/StockPage.jsx'
 import EditingPage        from '../pages/editing/EditingPage.jsx'
 import AdminPage          from '../pages/admin/AdminPage.jsx'
@@ -76,7 +76,10 @@ export const router = createBrowserRouter([
         },
         {
           element: <RequireRole allowed={['admin', 'vendor']} />,
-          children: [{ path: 'my-orders', element: <MyOrdersPage /> }],
+          children: [
+            { path: 'my-orders', element: <WorkspacePage /> },  // legacy alias
+            { path: 'workspace', element: <WorkspacePage /> },
+          ],
         },
         {
           element: <RequireRole allowed={['trusted_partner']} />,
