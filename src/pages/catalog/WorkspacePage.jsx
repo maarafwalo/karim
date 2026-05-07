@@ -1015,90 +1015,6 @@ function CustomersTab({ cur, profile }) {
   )
 }
 
-// ── Tab 4: الديون ──────────────────────────────────────────────
-function DebtsTab({ cur }) {
-  const [customers, setCustomers] = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
-  const [selected, setSelected]   = useState(null)
-  const [payAmt, setPayAmt]       = useState('')
-
-  const load = async () => {
-    setLoading(true)
-    const { data } = await (supabaseAdmin || supabase).from('customers').select('*').gt('balance', 0).order('balance', { ascending: false })
-    setCustomers(data || [])
-    setLoading(false)
-  }
-  useEffect(() => { load() }, [])
-
-  const recordPayment = async () => {
-    const amount = parseFloat(payAmt)
-    if (!selected || isNaN(amount) || amount <= 0) return
-    const { error } = await (supabaseAdmin || supabase).from('debt_payments').insert({ customer_id: selected.id, amount })
-    if (error) { toast.error('خطأ'); return }
-    await (supabaseAdmin || supabase).from('customers').update({ balance: Math.max(0, (selected.balance || 0) - amount) }).eq('id', selected.id)
-    toast.success('تم تسجيل الدفعة')
-    setPayAmt('')
-    setSelected(null)
-    load()
-  }
-
-  const filtered = customers.filter(c =>
-    !search || c.name?.includes(search) || c.phone?.includes(search))
-  const total = filtered.reduce((s, c) => s + (c.balance || 0), 0)
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="bg-white border-b border-slate-100 px-4 py-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            <span className="font-bold text-slate-800">{filtered.length}</span> مديون
-          </span>
-          <span className="font-black text-rose-600">{fmt(total)} {cur}</span>
-        </div>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          className="inp text-sm" placeholder="🔍 بحث..." />
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {loading ? (
-          <div className="text-center text-slate-400 py-6 text-sm">جاري التحميل...</div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-sm">
-            <span className="text-4xl mb-2">✨</span>
-            <span>لا توجد ديون</span>
-          </div>
-        ) : (
-          filtered.map(c => (
-            <div key={c.id} className="bg-white border border-rose-100 rounded-xl p-3 shadow-sm">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-slate-900 truncate">{c.name}</p>
-                  {c.phone && <p className="text-[11px] text-slate-500 ltr">{c.phone}</p>}
-                </div>
-                <div className="text-left flex-shrink-0">
-                  <div className="font-black text-rose-600">{fmt(c.balance)} <span className="text-[10px] font-normal text-slate-400">{cur}</span></div>
-                  <button onClick={() => setSelected(selected?.id === c.id ? null : c)}
-                    className="text-[10px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2 py-1 rounded-md mt-1">
-                    💵 سداد
-                  </button>
-                </div>
-              </div>
-              {selected?.id === c.id && (
-                <div className="flex gap-2 mt-2 pt-2 border-t border-rose-100">
-                  <input type="number" value={payAmt} onChange={e => setPayAmt(e.target.value)}
-                    className="inp text-sm flex-1" placeholder={`مبلغ السداد (${cur})`} autoFocus />
-                  <button onClick={recordPayment}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black px-3 rounded-lg">✔</button>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Main page with tabs ────────────────────────────────────────
 export default function WorkspacePage() {
   const { profile } = useAuthStore()
@@ -1106,7 +1022,7 @@ export default function WorkspacePage() {
   const cur = settings?.currency_symbol || settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
 
-  const VALID_TABS = ['browse', 'cart', 'orders', 'customers', 'debts']
+  const VALID_TABS = ['browse', 'cart', 'orders', 'customers']
   const [tab, setTab] = useState(() => {
     const hash = window.location.hash.replace('#', '')
     if (hash && VALID_TABS.includes(hash)) return hash
@@ -1128,7 +1044,6 @@ export default function WorkspacePage() {
     { key: 'cart',      label: 'السلة',   icon: '🛍',  badge: bagCount || null },
     { key: 'orders',    label: 'طلبات',   icon: '🧾' },
     { key: 'customers', label: 'الزبائن', icon: '👤' },
-    { key: 'debts',     label: 'الديون',  icon: '⚖️' },
   ]
 
   return (
@@ -1162,7 +1077,6 @@ export default function WorkspacePage() {
         {tab === 'cart'      && <CartTab cur={cur} profile={profile} />}
         {tab === 'orders'    && <OrdersTab cur={cur} profile={profile} />}
         {tab === 'customers' && <CustomersTab cur={cur} profile={profile} />}
-        {tab === 'debts'     && <DebtsTab cur={cur} />}
       </div>
     </div>
   )
