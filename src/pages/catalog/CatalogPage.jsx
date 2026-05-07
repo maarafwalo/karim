@@ -110,13 +110,38 @@ export default function CatalogPage() {
   const [customer, setCustomer] = useState({ name:'', phone:'', address:'' })
   const [showOrder, setShowOrder] = useState(false)
   const [sending, setSending]   = useState(false)
-  const [activeField, setActiveField] = useState(null)  // 'name'|'phone'|'address'|null
+  const [activeField, setActiveField]   = useState(null)  // 'name'|'phone'|'address'|null
+  const [activePriceId, setActivePriceId] = useState(null) // bag item id being edited
 
   const kbInsert = (ch) => {
+    if (activePriceId !== null) {
+      // Price field — accept only digits and decimal
+      if (!/^[0-9.]$/.test(ch)) return
+      setBag(prev => prev.map(b => {
+        if (b.product.id !== activePriceId) return b
+        const cur = String(b.negotiatedPrice ?? b.product.sell_price ?? '')
+        // Don't allow second decimal
+        if (ch === '.' && cur.includes('.')) return b
+        const nextStr = cur + ch
+        const num = parseFloat(nextStr)
+        return { ...b, negotiatedPrice: isNaN(num) ? 0 : num, _priceStr: nextStr }
+      }))
+      return
+    }
     if (!activeField) return
     setCustomer(c => ({ ...c, [activeField]: (c[activeField] || '') + ch }))
   }
   const kbBackspace = () => {
+    if (activePriceId !== null) {
+      setBag(prev => prev.map(b => {
+        if (b.product.id !== activePriceId) return b
+        const cur = b._priceStr ?? String(b.negotiatedPrice ?? '')
+        const nextStr = cur.slice(0, -1)
+        const num = parseFloat(nextStr)
+        return { ...b, negotiatedPrice: isNaN(num) ? 0 : num, _priceStr: nextStr }
+      }))
+      return
+    }
     if (!activeField) return
     setCustomer(c => ({ ...c, [activeField]: (c[activeField] || '').slice(0, -1) }))
   }
@@ -345,7 +370,11 @@ export default function CatalogPage() {
       {/* Bag modal */}
       {showBag && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center animate-fade-in" onClick={() => setShowBag(false)}>
-          <div className="bg-white rounded-t-2xl w-full max-w-lg max-h-[85vh] flex flex-col animate-slide-up" onClick={e=>e.stopPropagation()}>
+          <div
+            className="bg-white rounded-t-2xl w-full max-w-lg flex flex-col animate-slide-up"
+            style={{ maxHeight: activePriceId !== null ? '50vh' : '85vh' }}
+            onClick={e=>e.stopPropagation()}
+          >
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="font-black text-lg">🛍️ سلة الطلب</h2>
               <button onClick={() => setShowBag(false)} className="text-gray-400 text-xl">✕</button>
@@ -371,16 +400,22 @@ export default function CatalogPage() {
                     </div>
                     <button onClick={() => removeFromBag(b.product.id)} className="text-red-400 text-sm hover:opacity-70">✕</button>
                   </div>
-                  {/* Price negotiation row (vendor only) */}
+                  {/* Price negotiation row (vendor only) — virtual keyboard */}
                   <div className="flex items-center gap-2 mt-2 pr-12">
                     <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">سعر التفاوض:</label>
-                    <input type="number" step="0.01" min="0"
-                      value={negPrice}
-                      onChange={e => setNegotiatedPrice(b.product.id, e.target.value)}
-                      className={`flex-1 text-xs px-2 py-1 rounded-md border bg-white ${isNeg ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'}`}
+                    <input
+                      readOnly
+                      inputMode="none"
+                      onClick={() => { setActivePriceId(b.product.id); setActiveField(null) }}
+                      onFocus={() => { setActivePriceId(b.product.id); setActiveField(null) }}
+                      value={b._priceStr ?? fmt(negPrice)}
+                      className={`flex-1 text-sm px-2 py-1 rounded-md border bg-white cursor-pointer ${
+                        activePriceId === b.product.id ? 'ring-2 ring-primary border-primary' :
+                        isNeg ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'
+                      }`}
                     />
                     {isNeg && (
-                      <button onClick={() => setNegotiatedPrice(b.product.id, b.product.sell_price)}
+                      <button onClick={() => setBag(prev => prev.map(x => x.product.id === b.product.id ? { ...x, negotiatedPrice: b.product.sell_price, _priceStr: undefined } : x))}
                         className="text-[10px] text-amber-600 hover:underline whitespace-nowrap">↺ افتراضي</button>
                     )}
                   </div>
@@ -418,6 +453,16 @@ export default function CatalogPage() {
               )}
             </div>
           </div>
+
+          {/* Virtual numeric keyboard for price negotiation */}
+          {activePriceId !== null && (
+            <VirtualKeyboard
+              mode="num"
+              onKey={kbInsert}
+              onBackspace={kbBackspace}
+              onClose={() => setActivePriceId(null)}
+            />
+          )}
         </div>
       )}
 
