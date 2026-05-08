@@ -6,6 +6,8 @@ export const useShiftStore = create(
   persist(
     (set, get) => ({
       currentShift: null, // { id, opened_at, opening_cash, cashier_id }
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       openShift: async (openingCash, cashierId) => {
         // Try to persist to Supabase; fall back to a local shift if the table doesn't exist yet
@@ -57,6 +59,14 @@ export const useShiftStore = create(
         set({ currentShift: null })
       },
     }),
-    { name: 'joud_shift', partialize: s => ({ currentShift: s.currentShift }) }
+    {
+      name: 'joud_shift',
+      partialize: s => ({ currentShift: s.currentShift }),
+      onRehydrateStorage: () => (state) => {
+        // Called after hydration finishes (with the rehydrated state). Flip
+        // _hasHydrated so consumers like POSPage stop showing the loader.
+        state?.setHasHydrated?.(true)
+      },
+    }
   )
 )
