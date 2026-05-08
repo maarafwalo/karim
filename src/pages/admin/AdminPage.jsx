@@ -8,6 +8,7 @@ import { fmt, fmtDate, ROLE_LABELS } from '../../lib/utils.js'
 import DebtPage      from '../debt/DebtPage.jsx'
 import SuppliersPage from '../suppliers/SuppliersPage.jsx'
 import ReportsPage   from '../reports/ReportsPage.jsx'
+import ImportProductsTab from './ImportProductsTab.jsx'
 import toast from 'react-hot-toast'
 
 // ── Settings Tab ─────────────────────────────────────────────
@@ -479,6 +480,7 @@ export default function AdminPage() {
     { id:'accounting',   label:'💼 محاسبة' },
     { id:'suppliers',    label:'🚚 موردون' },
     { id:'reports',      label:'📈 تقارير' },
+    { id:'import',       label:'📦 استيراد' },
   ]
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
@@ -500,6 +502,7 @@ export default function AdminPage() {
         {tab === 'accounting'  && <DebtPage />}
         {tab === 'suppliers'   && <SuppliersPage />}
         {tab === 'reports'     && <ReportsPage />}
+        {tab === 'import'      && <ImportProductsTab />}
       </div>
     </div>
   )
