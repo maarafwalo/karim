@@ -31,6 +31,8 @@ export default function CartTab({ onBrowse }) {
   const hasCustomer = !!(customer?.name)
 
   const sendOrder = async ({ skipCustomer = false } = {}) => {
+    // Guard against double-click race
+    if (sending) return
     if (!skipCustomer && !hasCustomer) { toast.error('اختر زبون أولاً'); return }
     setSending(true)
     const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
@@ -42,14 +44,15 @@ export default function CartTab({ onBrowse }) {
       p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
     ])
 
+    // Float-tolerant negotiation flag — avoids 0.30000000000000004 false-positives.
+    const EPS = 0.005
+
     try {
-      if (editingOrder?.id) {
-        await withTimeout(db.from('catalog_order_items').delete().eq('order_id', editingOrder.id))
-        await withTimeout(db.from('catalog_orders').delete().eq('id', editingOrder.id))
-      }
+      // Insert-first / delete-after so a failed insert can't orphan us
+      // (#2 in the audit). The original order survives until items insert succeeds.
       const { data: order, error: ordErr } = await withTimeout(
         db.from('catalog_orders').insert({
-          order_number:       orderNum,
+          order_number:       orderNum + (editingOrder?.id ? `-tmp-${Date.now()}` : ''),
           vendor_id:          profile?.id || null,
           customer_name:      cName,
           customer_phone:     cPhone,
@@ -66,7 +69,7 @@ export default function CartTab({ onBrowse }) {
       const { error: itemsErr } = await withTimeout(
         db.from('catalog_order_items').insert(
           items.map(b => {
-            const np = itemPrice(b), orig = b.product.sell_price, isNeg = np !== orig
+            const np = itemPrice(b), orig = b.product.sell_price, isNeg = Math.abs(np - orig) > EPS
             const nameWithPartial = b.partial
               ? `${b.product.name} (${b.partial.units}/${b.partial.packSize})`
               : b.product.name
@@ -79,17 +82,24 @@ export default function CartTab({ onBrowse }) {
               negotiated:     isNeg || !!b.partial,
               price_diff:     +(np - orig).toFixed(2),
               quantity:       b.qty,
-              total:          np * b.qty,
+              total:          +(np * b.qty).toFixed(2),
             }
           })
         )
       )
       if (itemsErr) throw itemsErr
 
+      // Only NOW remove the old order — new one is already complete.
+      if (editingOrder?.id) {
+        await withTimeout(db.from('catalog_order_items').delete().eq('order_id', editingOrder.id))
+        await withTimeout(db.from('catalog_orders').delete().eq('id', editingOrder.id))
+        // Restore the original order number (we appended a tmp suffix to avoid
+        // the unique constraint while both rows existed briefly).
+        await db.from('catalog_orders').update({ order_number: orderNum }).eq('id', order.id)
+      }
+
       toast.success(editingOrder ? `✔ تم تحديث #${orderNum}` : `✔ تم حفظ #${orderNum}`)
       clearBag()
-      // Use direct hash assignment so hashchange fires and the tab switches.
-      // navigate() uses pushState which doesn't trigger hashchange.
       window.location.hash = 'orders'
     } catch (e) {
       toast.error('فشل الحفظ: ' + (e.message || 'خطأ'))
@@ -162,12 +172,16 @@ export default function CartTab({ onBrowse }) {
             onPriceUp={() => setNegPrice(item.product.id, +(itemPrice(item) + 0.10).toFixed(2))}
             onPriceDown={() => setNegPrice(item.product.id, Math.max(0, +(itemPrice(item) - 0.10).toFixed(2)))}
             onSplit={() => {
-              const units = window.prompt('كم وحدة تريد بيعها؟', String(item.partial?.units || item.qty))
-              if (!units) return
+              const units = window.prompt('كم وحدة تريد بيعها؟ (اكتب 0 لإلغاء التقسيم)', String(item.partial?.units || item.qty))
+              if (units === null) return // canceled
+              const u = Number(units)
+              if (!Number.isFinite(u) || u < 0) { toast.error('عدد غير صالح'); return }
+              if (u === 0) { setPartial(item.product.id, null); toast.success('تم إلغاء التقسيم'); return }
               const packSize = window.prompt('عدد الوحدات في الباكية؟', String(item.partial?.packSize || 12))
-              if (!packSize) return
-              const u = Number(units), p = Number(packSize)
-              if (!u || !p || p < 1) { toast.error('قيم غير صالحة'); return }
+              if (packSize === null) return
+              const p = Number(packSize)
+              if (!Number.isFinite(p) || p < 1) { toast.error('عدد الوحدات غير صالح'); return }
+              if (u > p) { toast.error('لا يمكن أن تكون الوحدات أكثر من الباكية'); return }
               setPartial(item.product.id, { units: u, packSize: p })
             }}
           />

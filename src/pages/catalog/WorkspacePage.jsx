@@ -18,18 +18,23 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
   const [payAmt, setPayAmt]     = useState('')
   const [working, setWorking]   = useState(false)
 
-  useEffect(() => {
-    if (!expanded || history.loaded) return
-    let cancelled = false
-    Promise.all([
+  // Single source of truth for fetching the customer's history. Called both
+  // from the expand effect AND right after recordPayment (so the new dفعة
+  // shows up without needing to collapse + reopen the card).
+  const refreshHistory = async () => {
+    const [inv, pay] = await Promise.all([
       supabase.from('pos_invoices').select('order_number, total, payment_method, payment_label, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
       (supabaseAdmin || supabase).from('debt_payments').select('amount, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
-    ]).then(([inv, pay]) => {
-      if (cancelled) return
-      setHistory({ invoices: inv.data || [], payments: pay.data || [], loaded: true })
-    })
+    ])
+    setHistory({ invoices: inv.data || [], payments: pay.data || [], loaded: true })
+  }
+
+  useEffect(() => {
+    if (!expanded) return
+    let cancelled = false
+    refreshHistory().then(() => { if (cancelled) setHistory(h => h) })
     return () => { cancelled = true }
   }, [expanded, c.id])
 
@@ -50,8 +55,14 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
   }
 
   const recordPayment = async () => {
-    const amount = parseFloat(payAmt)
-    if (!amount || amount <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return }
+    const raw = parseFloat(payAmt)
+    if (!raw || raw <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return }
+    // Cap the recorded amount at the outstanding balance — overpaying inflated
+    // payment history without actually paying down debt.
+    const amount = Math.min(raw, c.balance || 0)
+    if (raw > (c.balance || 0)) {
+      if (!window.confirm(`المبلغ أكبر من الدين (${fmt(c.balance || 0)} ${cur}). نسجل ${fmt(amount)} فقط؟`)) return
+    }
     setWorking(true)
     const { error } = await (supabaseAdmin || supabase).from('debt_payments').insert({ customer_id: c.id, amount })
     if (error) { setWorking(false); toast.error('فشل التسجيل'); return }
@@ -59,7 +70,7 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
     const { data: upd } = await (supabaseAdmin || supabase).from('customers').update({ balance: newBal }).eq('id', c.id).select().single()
     setWorking(false)
     setPayAmt('')
-    setHistory(h => ({ ...h, loaded: false }))
+    await refreshHistory()
     toast.success(`✔ تم تسجيل ${fmt(amount)} ${cur}`)
     if (upd) onChange(upd)
   }
@@ -227,7 +238,12 @@ function CustomersTab({ cur }) {
     if (data) {
       setCustomers(prev => [data, ...prev])
       if (bagCount > 0) {
-        setBagCustomer({ name: data.name || '', phone: data.phone || '', address: data.address || '' })
+        setBagCustomer({
+          id:      data.id,
+          name:    data.name    || '',
+          phone:   data.phone   || '',
+          address: data.address || '',
+        })
         toast.success(`✓ ${data.name} محدد للطلب`)
       } else {
         setExpandedId(data.id)
@@ -342,7 +358,12 @@ function CustomersTab({ cur }) {
               onChange={updateOne}
               onDelete={() => del(c.id)}
               onUseForOrder={() => {
-                setBagCustomer({ name: c.name || '', phone: c.phone || '', address: c.address || '' })
+                setBagCustomer({
+                  id:      c.id,
+                  name:    c.name    || '',
+                  phone:   c.phone   || '',
+                  address: c.address || '',
+                })
                 setExpandedId(null)
                 toast.success(`✓ ${c.name} محدد للطلب`)
               }}
@@ -383,8 +404,11 @@ export default function WorkspacePage() {
     { key: 'customers', label: 'الزبائن', icon: '👤' },
   ]
 
-  const goCart = () => { window.location.hash = 'cart' }
-  const goBrowse = () => { window.location.hash = 'browse' }
+  // Setting hash twice in a row would skip the second hashchange event, so
+  // we also call setTab directly to keep state and URL in sync.
+  const goTab = (key) => { window.location.hash = key; setTab(key) }
+  const goCart = () => goTab('cart')
+  const goBrowse = () => goTab('browse')
 
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl"
@@ -395,7 +419,7 @@ export default function WorkspacePage() {
           {TABS.map(t => {
             const active = tab === t.key
             return (
-              <button key={t.key} onClick={() => setTab(t.key)}
+              <button key={t.key} onClick={() => goTab(t.key)}
                 className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition flex-shrink-0"
                 style={{
                   background: active ? 'white' : 'rgba(255,255,255,0.12)',

@@ -24,6 +24,8 @@ export default function OrdersTab({ onSwitchToCart }) {
   const setBagItems         = useBagStore(s => s.setItems)
   const setBagCustomer      = useBagStore(s => s.setCustomer)
   const setEditingOrderInBag = useBagStore(s => s.setEditingOrder)
+  const currentBagItems     = useBagStore(s => s.items)
+  const currentEditingOrder = useBagStore(s => s.editingOrder)
 
   const [orders, setOrders]     = useState([])
   const [loading, setLoading]   = useState(true)
@@ -47,18 +49,35 @@ export default function OrdersTab({ onSwitchToCart }) {
   useEffect(() => { load() }, [profile?.id])
 
   const editOrder = async (order) => {
+    // Warn if there's an unsaved bag for a different order — user might lose work
+    if (currentBagItems.length > 0 && currentEditingOrder?.id !== order.id) {
+      const otherLabel = currentEditingOrder
+        ? `الطلب #${currentEditingOrder.order_number}`
+        : 'سلة جديدة'
+      if (!window.confirm(`عندك ${otherLabel} في السلة. هل تريد التخلي عنها وفتح هذا الطلب؟`)) return
+    }
     const db = supabaseAdmin || supabase
     const { data: items } = await db.from('catalog_order_items').select('*').eq('order_id', order.id)
     const productMap = new Map((products || []).map(p => [p.id, p]))
+    // Match "name (units/packSize)" suffix so we don't double-encode it on save
+    const partialRe = /\s*\((\d+)\/(\d+)\)\s*$/
     const newBag = (items || []).map(it => {
+      const m = it.product_name?.match(partialRe)
+      const cleanName = m ? it.product_name.replace(partialRe, '').trim() : it.product_name
+      const partial = m ? { units: Number(m[1]), packSize: Number(m[2]) } : null
       const product = productMap.get(it.product_id) || {
         id: it.product_id,
-        name: it.product_name,
+        name: cleanName,
         sell_price: it.original_price ?? it.unit_price,
         emoji: '📦',
         image_url: null,
       }
-      return { product, qty: it.quantity, negotiatedPrice: it.unit_price }
+      return {
+        product,
+        qty: it.quantity,
+        negotiatedPrice: it.unit_price,
+        ...(partial ? { partial } : {}),
+      }
     })
     setBagItems(newBag)
     setBagCustomer({
@@ -93,10 +112,12 @@ export default function OrdersTab({ onSwitchToCart }) {
     if (filter !== 'all') list = list.filter(o => o.status === filter)
     if (searchQ.trim()) {
       const q = searchQ.trim().toLowerCase()
+      // Strip non-digits from both sides so '0612' matches '+212-612-…'.
+      const qDigits = q.replace(/\D/g, '')
       list = list.filter(o =>
         (o.order_number   || '').toLowerCase().includes(q) ||
         (o.customer_name  || '').toLowerCase().includes(q) ||
-        (o.customer_phone || '').toLowerCase().includes(q)
+        (qDigits && (o.customer_phone || '').replace(/\D/g, '').includes(qDigits))
       )
     }
     return list
@@ -131,7 +152,7 @@ export default function OrdersTab({ onSwitchToCart }) {
               border: active ? 'none' : `1.5px solid ${COLORS.borderStrong}`,
               cursor: 'pointer',
             }}>
-              {f.label} {count > 0 && `· ${count}`}
+              {f.label} · {count}
             </button>
           )
         })}
@@ -170,7 +191,11 @@ export default function OrdersTab({ onSwitchToCart }) {
             order={order}
             onEdit={() => editOrder(order)}
             onDelete={() => {
-              if (window.confirm(`حذف الطلب #${order.order_number}؟`)) deleteOrder(order)
+              const editable = order.status === 'new' && !order.stock_approved
+              const msg = editable
+                ? `حذف الطلب #${order.order_number}؟`
+                : `⚠ هذا الطلب تمت معالجته. هل تريد حذفه نهائياً؟`
+              if (window.confirm(msg)) deleteOrder(order)
             }}
           />
         ))
@@ -254,28 +279,27 @@ function OrderCard({ order, onEdit, onDelete }) {
         gap: 8, marginTop: 8,
       }}>
         {editable && (
-          <>
-            <button onClick={onEdit} style={{
-              background: '#fef9c3', border: '1.5px solid #fde047',
-              color: '#713f12', padding: 12, borderRadius: 12,
-              fontSize: 13, fontWeight: 500, cursor: 'pointer',
-            }}>✏️ تعديل</button>
-            <button onClick={onDelete} style={{
-              background: '#fef2f2', border: '1.5px solid #fecaca',
-              color: '#991b1b', padding: 12, borderRadius: 12,
-              fontSize: 13, fontWeight: 500, cursor: 'pointer',
-            }}>🗑 حذف</button>
-          </>
+          <button onClick={onEdit} style={{
+            background: '#fef9c3', border: '1.5px solid #fde047',
+            color: '#713f12', padding: 12, borderRadius: 12,
+            fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          }}>✏️ تعديل</button>
         )}
-        {!editable && (
-          <div style={{
-            background: '#f8fafc', color: '#94a3b8', padding: 10,
-            borderRadius: 12, fontSize: 12, textAlign: 'center',
-          }}>
-            ⚠ تم بدء معالجة الطلب — لا يمكن التعديل
-          </div>
-        )}
+        <button onClick={onDelete} style={{
+          background: '#fef2f2', border: '1.5px solid #fecaca',
+          color: '#991b1b', padding: 12, borderRadius: 12,
+          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+        }}>🗑 حذف</button>
       </div>
+      {!editable && (
+        <div style={{
+          marginTop: 8, padding: '8px 12px',
+          background: '#f8fafc', color: '#94a3b8',
+          borderRadius: 10, fontSize: 11, textAlign: 'center',
+        }}>
+          ⚠ تم بدء معالجة الطلب — التعديل مغلق، الحذف يحتاج تأكيد إضافي
+        </div>
+      )}
     </div>
   )
 }

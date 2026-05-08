@@ -62,10 +62,10 @@ export default function ProductsTab({ onOpenCart }) {
         })}
       </div>
 
-      {/* Products grid — 3 cols on tablet, 2 on phone */}
+      {/* Products grid — auto-fits 2 cols on phone, 3+ on tablet */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-        gap: 12, paddingBottom: 100,
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+        gap: 10, paddingBottom: 100,
       }}>
         {filtered.map((p) => {
           const qty = inCartQty(p.id)

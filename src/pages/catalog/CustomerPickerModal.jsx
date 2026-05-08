@@ -32,9 +32,10 @@ export default function CustomerPickerModal({ onClose, onPick, orderTotal = 0 })
   const filtered = useMemo(() => {
     if (!searchQ.trim()) return customers
     const q = searchQ.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
     return customers.filter(c =>
       (c.name || '').toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q)
+      (qDigits && (c.phone || '').replace(/\D/g, '').includes(qDigits))
     )
   }, [customers, searchQ])
 
@@ -43,6 +44,8 @@ export default function CustomerPickerModal({ onClose, onPick, orderTotal = 0 })
       <NewCustomerForm
         onClose={() => setShowNewForm(false)}
         onCreated={(c) => {
+          // Push into the local list so it shows up if the picker is reopened
+          setCustomers(prev => [c, ...prev])
           setShowNewForm(false)
           onPick(c)
         }}

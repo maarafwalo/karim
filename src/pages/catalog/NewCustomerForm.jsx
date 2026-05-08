@@ -44,8 +44,17 @@ export default function NewCustomerForm({ onClose, onCreated }) {
     onCreated(data)
   }
 
+  // Discard-typed-data guard: confirm before closing if any field has content.
+  const safeClose = () => {
+    if (saving) return
+    if (name.trim() || phone.trim() || address.trim()) {
+      if (!window.confirm('سيُفقد ما كتبته. هل تريد المتابعة؟')) return
+    }
+    onClose()
+  }
+
   return (
-    <div onClick={onClose} style={{
+    <div onClick={safeClose} style={{
       position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
       zIndex: 110, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
       padding: 16, overflowY: 'auto',
@@ -59,7 +68,7 @@ export default function NewCustomerForm({ onClose, onCreated }) {
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div style={{ color: 'white', fontWeight: 500, fontSize: 17 }}>➕ زبون جديد</div>
-          <button onClick={onClose} style={{
+          <button onClick={safeClose} style={{
             background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none',
             width: 36, height: 36, borderRadius: 10, fontSize: 18, cursor: 'pointer',
           }}>✕</button>
@@ -116,7 +125,7 @@ export default function NewCustomerForm({ onClose, onCreated }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
-            <button onClick={onClose} style={{
+            <button onClick={safeClose} style={{
               background: 'white', color: '#475569', border: '1.5px solid #cbd5e1',
               padding: 14, borderRadius: 12, fontSize: 14, fontWeight: 500, cursor: 'pointer',
             }}>إلغاء</button>
