@@ -25,13 +25,14 @@ export default function ImportProductsTab() {
   const [picked, setPicked]     = useState(new Set())  // ids selected for import
   const [importing, setImporting] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
+  const [activeCatId, setActiveCatId]     = useState(null) // null = all categories
 
   const load = async () => {
     setLoading(true)
     try {
       const [{ data: liteProds }, { data: liteCs }, { data: appProds }, { data: appCs }] = await Promise.all([
-        liteClient.from('products').select('id,name,size,sell_price,cost_price,barcode,emoji,image_url,is_active,is_hidden,categories(name)').order('name'),
-        liteClient.from('categories').select('id,name'),
+        liteClient.from('products').select('id,name,size,sell_price,cost_price,barcode,emoji,image_url,is_active,is_hidden,category_id,categories(name)').order('name'),
+        liteClient.from('categories').select('id,name').order('name'),
         (supabaseAdmin || supabase).from('products').select('barcode,name'),
         (supabaseAdmin || supabase).from('categories').select('id,name'),
       ])
@@ -57,6 +58,7 @@ export default function ImportProductsTab() {
 
   const filtered = useMemo(() => {
     let list = liteProducts
+    if (activeCatId !== null) list = list.filter(p => p.category_id === activeCatId)
     if (hideExisting) list = list.filter(p => !isExisting(p))
     if (search) {
       const q = search.toLowerCase()
@@ -67,7 +69,17 @@ export default function ImportProductsTab() {
       )
     }
     return list
-  }, [liteProducts, search, hideExisting, existingBarcodes, existingNames])
+  }, [liteProducts, search, hideExisting, activeCatId, existingBarcodes, existingNames])
+
+  // Count fresh (not-already-imported) products per category
+  const catCounts = useMemo(() => {
+    const m = new Map()
+    for (const p of liteProducts) {
+      if (hideExisting && isExisting(p)) continue
+      m.set(p.category_id, (m.get(p.category_id) || 0) + 1)
+    }
+    return m
+  }, [liteProducts, hideExisting, existingBarcodes, existingNames])
 
   const toggle = (id) => {
     setPicked(prev => {
@@ -201,6 +213,29 @@ export default function ImportProductsTab() {
             className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg">
             ↻ تحديث
           </button>
+        </div>
+
+        {/* Category filter chips */}
+        <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1">
+          <button onClick={() => setActiveCatId(null)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition ${
+              activeCatId === null ? 'bg-primary text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}>
+            كل الأقسام
+          </button>
+          {liteCats.map(c => {
+            const n = catCounts.get(c.id) || 0
+            if (n === 0) return null
+            const active = activeCatId === c.id
+            return (
+              <button key={c.id} onClick={() => setActiveCatId(c.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition ${
+                  active ? 'bg-primary text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                {c.name} <span className={`text-[10px] ${active ? 'text-white/80' : 'text-slate-400'}`}>({n})</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
