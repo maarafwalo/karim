@@ -201,7 +201,7 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
 }
 
 // ── Customers tab (CRM-style cards) ────────────────────────────
-function CustomersTab({ cur }) {
+function CustomersTab({ cur, onUseInCart }) {
   const setBagCustomer = useBagStore(s => s.setCustomer)
   const bagCount       = useBagStore(s => s.items.reduce((a, b) => a + b.qty, 0))
 
@@ -245,6 +245,7 @@ function CustomersTab({ cur }) {
           address: data.address || '',
         })
         toast.success(`✓ ${data.name} محدد للطلب`)
+        onUseInCart?.()
       } else {
         setExpandedId(data.id)
       }
@@ -366,6 +367,8 @@ function CustomersTab({ cur }) {
                 })
                 setExpandedId(null)
                 toast.success(`✓ ${c.name} محدد للطلب`)
+                // Hand off to the cart so the user can finish the order
+                onUseInCart?.()
               }}
             />
           ))
@@ -454,7 +457,7 @@ export default function WorkspacePage() {
         {tab === 'browse'    && <ProductsTab onOpenCart={goCart} />}
         {tab === 'cart'      && <CartTab onBrowse={goBrowse} />}
         {tab === 'orders'    && <OrdersTab onSwitchToCart={goCart} />}
-        {tab === 'customers' && <CustomersTab cur={cur} />}
+        {tab === 'customers' && <CustomersTab cur={cur} onUseInCart={goCart} />}
       </div>
     </div>
   )

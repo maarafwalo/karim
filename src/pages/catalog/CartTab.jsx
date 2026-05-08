@@ -111,6 +111,26 @@ export default function CartTab({ onBrowse }) {
   if (items.length === 0) {
     return (
       <div style={{ background: COLORS.pageBg, minHeight: '100%', padding: 16 }}>
+        {editingOrder && (
+          <div style={{
+            background: '#fef3c7', border: '2px solid #fcd34d', borderRadius: 14,
+            padding: '10px 14px', marginBottom: 12,
+            display: 'flex', alignItems: 'center', gap: 10,
+            color: '#92400e', fontSize: 14, fontWeight: 500,
+          }}>
+            <span style={{ fontSize: 18 }}>✏️</span>
+            <span style={{ flex: 1 }}>وضع تعديل #{editingOrder.order_number} — أضف منتجات لإكمال التعديل</span>
+            <button
+              onClick={() => clearBag()}
+              style={{
+                background: 'white', color: '#92400e',
+                border: '1px solid #fcd34d', borderRadius: 10,
+                padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              }}>
+              إلغاء
+            </button>
+          </div>
+        )}
         <div style={{
           background: 'white', borderRadius: 16, padding: 40, textAlign: 'center',
           color: COLORS.muted, border: `1.5px solid ${COLORS.border}`,
@@ -133,6 +153,28 @@ export default function CartTab({ onBrowse }) {
 
   return (
     <div style={{ background: COLORS.pageBg, minHeight: '100%', padding: 16 }}>
+      {/* Editing-mode banner — visible reminder so vendor doesn't accidentally create a new order */}
+      {editingOrder && (
+        <div style={{
+          background: '#fef3c7', border: '2px solid #fcd34d', borderRadius: 14,
+          padding: '10px 14px', marginBottom: 12,
+          display: 'flex', alignItems: 'center', gap: 10,
+          color: '#92400e', fontSize: 14, fontWeight: 500,
+        }}>
+          <span style={{ fontSize: 18 }}>✏️</span>
+          <span style={{ flex: 1 }}>تعديل الطلب <b>#{editingOrder.order_number}</b></span>
+          <button
+            onClick={() => { if (window.confirm('إلغاء التعديل وإفراغ السلة؟')) clearBag() }}
+            style={{
+              background: 'white', color: '#92400e',
+              border: '1px solid #fcd34d', borderRadius: 10,
+              padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            }}>
+            إلغاء التعديل
+          </button>
+        </div>
+      )}
+
       <div style={{
         background: 'white', borderRadius: 16, overflow: 'hidden',
         border: `1.5px solid ${COLORS.border}`,
