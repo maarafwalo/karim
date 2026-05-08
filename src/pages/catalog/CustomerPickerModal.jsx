@@ -144,8 +144,8 @@ export default function CustomerPickerModal({ onClose, onPick, orderTotal = 0 })
               textAlign: 'center', padding: 30, color: COLORS.muted,
               background: '#f8fafc', borderRadius: 12,
             }}>
-              <div style={{ fontSize: 32, marginBottom: 6 }}>🔍</div>
-              ما لقيناش زبون بهاد الاسم
+              <div style={{ fontSize: 32, marginBottom: 6 }}>{searchQ ? '🔍' : '👤'}</div>
+              {searchQ ? 'ما لقيناش زبون بهاد الاسم' : 'ما كاينش زبائن بعد — زِيد واحد جديد'}
             </div>
           ) : (
             filtered.slice(0, 50).map(c => {

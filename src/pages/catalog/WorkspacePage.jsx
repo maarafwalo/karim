@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
-import { useAuthStore } from '../../stores/authStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
 import { useBagStore } from '../../stores/bagStore.js'
 import { fmt, fmtDate, buildWhatsApp } from '../../lib/utils.js'

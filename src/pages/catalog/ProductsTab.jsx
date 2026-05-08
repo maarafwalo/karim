@@ -5,7 +5,6 @@ import { useProductsStore } from '../../stores/productsStore.js'
 import { COLORS, money, itemPrice } from './_workspaceHelpers.js'
 
 export default function ProductsTab({ onOpenCart }) {
-  const products = useProductsStore((s) => s.products)
   const categories = useProductsStore((s) => s.categories)
   const activeCat = useProductsStore((s) => s.activeCat)
   const setActiveCat = useProductsStore((s) => s.setActiveCat)

@@ -1,7 +1,6 @@
 // Cart tab — adapted to bagStore's { product, qty, negotiatedPrice, partial } shape.
 // Self-contained: handles save to catalog_orders + catalog_order_items.
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useBagStore } from '../../stores/bagStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
@@ -11,7 +10,6 @@ import { COLORS, money, avatarColor, initials, itemPrice, itemSubtotal } from '.
 import CustomerPickerModal from './CustomerPickerModal.jsx'
 
 export default function CartTab({ onBrowse }) {
-  const navigate = useNavigate()
   const { profile } = useAuthStore()
 
   const items         = useBagStore(s => s.items)
@@ -90,7 +88,9 @@ export default function CartTab({ onBrowse }) {
 
       toast.success(editingOrder ? `✔ تم تحديث #${orderNum}` : `✔ تم حفظ #${orderNum}`)
       clearBag()
-      navigate('/workspace#orders', { replace: true })
+      // Use direct hash assignment so hashchange fires and the tab switches.
+      // navigate() uses pushState which doesn't trigger hashchange.
+      window.location.hash = 'orders'
     } catch (e) {
       toast.error('فشل الحفظ: ' + (e.message || 'خطأ'))
     } finally {

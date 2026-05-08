@@ -27,22 +27,49 @@ export default function VendorOrdersTab() {
   const [items, setItems]         = useState({})   // orderId -> items[]
   const [busyId, setBusyId]       = useState(null)
 
+  const [loadError, setLoadError] = useState(null)
+
   const load = async () => {
     setLoading(true)
+    setLoadError(null)
     const db = supabaseAdmin || supabase
-    const [{ data: ords }, { data: profs }] = await Promise.all([
-      db.from('catalog_orders')
-        .select('*')
-        .eq('is_partner_request', false)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      db.from('profiles').select('id, full_name'),
+    const withTimeout = (p, ms = 8000) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
     ])
-    setOrders(ords || [])
-    const map = {}
-    ;(profs || []).forEach(p => { map[p.id] = p.full_name || '—' })
-    setVendors(map)
-    setLoading(false)
+    try {
+      const { data: ords, error } = await withTimeout(
+        db.from('catalog_orders')
+          .select('*')
+          .eq('is_partner_request', false)
+          .order('created_at', { ascending: false })
+          .limit(200)
+      )
+      if (error) throw error
+      setOrders(ords || [])
+
+      // Best-effort vendor name lookup — only fetch IDs we actually need.
+      const vendorIds = [...new Set((ords || []).map(o => o.vendor_id).filter(Boolean))]
+      if (vendorIds.length) {
+        const { data: profs } = await db
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', vendorIds)
+        const map = {}
+        ;(profs || []).forEach(p => { map[p.id] = p.full_name || '—' })
+        setVendors(map)
+      }
+    } catch (e) {
+      console.error('VendorOrdersTab load failed:', e)
+      setLoadError(
+        e.message === 'timeout'
+          ? 'انتهت المهلة — قد تحتاج صلاحية إدارية على catalog_orders'
+          : (e.message || 'فشل التحميل')
+      )
+      setOrders([])
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -159,6 +186,14 @@ export default function VendorOrdersTab() {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {loading ? (
           <div className="text-center text-slate-400 py-8 text-sm">جاري التحميل...</div>
+        ) : loadError ? (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
+            ⚠️ {loadError}
+            <div className="text-xs text-amber-700 mt-2">
+              تأكد أن <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_SERVICE_KEY</code> مضبوط في الإنتاج،
+              أو شغّل <code className="bg-amber-100 px-1 rounded">sql/admin_orders_rls.sql</code> لإضافة سياسة قراءة للإداري.
+            </div>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center text-slate-400 py-10 text-sm">لا توجد طلبات</div>
         ) : (
