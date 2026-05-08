@@ -144,6 +144,38 @@ export const useCartStore = create(
         paymentMethod: 'cash', discountType: 'fixed',
       }),
 
+      // Load a vendor catalog_order into the POS cart for invoicing.
+      // items: [{ product_id, product_name, unit_price, quantity, ... }]
+      // customer: { name, phone, address }
+      // orderRef: optional string (e.g. 'ORD-...') stored in notes
+      loadFromOrder: (items, customer, orderRef) => set(() => ({
+        items: (items || []).map(it => ({
+          id:         it.product_id,
+          name:       it.product_name,
+          sell_price: Number(it.unit_price) || 0,
+          qty:        Math.max(1, Number(it.quantity) || 1),
+          stock:      null,
+          emoji:      '📦',
+          image_url:  null,
+          barcode:    null,
+          categories: null,
+          cat:        null,
+          isReturn:   false,
+        })),
+        customer: customer ? {
+          id:    null,
+          name:  customer.name || '',
+          phone: customer.phone || '',
+          address: customer.address || '',
+        } : null,
+        discountType:  'fixed',
+        discountValue: 0,
+        amountPaid:    0,
+        paymentMethod: 'cash',
+        notes:         orderRef ? `من طلب: ${orderRef}` : '',
+        returnMode:    false,
+      })),
+
       getTotals: (tvaRate = 0) => {
         const { items, discountType, discountValue, amountPaid } = get()
         const regularItems = items.filter(i => !i.isReturn)

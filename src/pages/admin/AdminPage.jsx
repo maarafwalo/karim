@@ -10,6 +10,7 @@ import SuppliersPage from '../suppliers/SuppliersPage.jsx'
 import ReportsPage   from '../reports/ReportsPage.jsx'
 import PartnerAccountPage from '../partner/PartnerAccountPage.jsx'
 import ImportProductsTab from './ImportProductsTab.jsx'
+import VendorOrdersTab   from './VendorOrdersTab.jsx'
 import toast from 'react-hot-toast'
 
 // ── Settings Tab ─────────────────────────────────────────────
@@ -478,6 +479,7 @@ export default function AdminPage() {
     { id:'permissions',  label:'🔐 الصلاحيات' },
     { id:'stores',       label:'🏬 الفروع' },
     { id:'stats',        label:'📊 الإحصائيات' },
+    { id:'vorders',      label:'📋 طلبات الباعة' },
     { id:'accounting',   label:'💼 محاسبة' },
     { id:'suppliers',    label:'🚚 موردون' },
     { id:'reports',      label:'📈 تقارير' },
@@ -501,6 +503,7 @@ export default function AdminPage() {
         {tab === 'permissions' && <div className="h-full overflow-y-auto"><PermissionsTab /></div>}
         {tab === 'stores'      && <div className="h-full overflow-y-auto"><StoresTab /></div>}
         {tab === 'stats'       && <div className="h-full overflow-y-auto"><StatsTab /></div>}
+        {tab === 'vorders'     && <VendorOrdersTab />}
         {tab === 'accounting'  && <DebtPage />}
         {tab === 'suppliers'   && <SuppliersPage />}
         {tab === 'reports'     && <ReportsPage />}
