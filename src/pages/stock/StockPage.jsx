@@ -186,37 +186,132 @@ function ProductModal({ product, categories, onSave, onClose }) {
   )
 }
 
-// ── Product Card ──────────────────────────────────────────────
-function ProductCard({ p, cur, saving, onStockChange, onEdit, onToggleHide }) {
-  const [imgError, setImgError] = useState(false)
+// ── Product Card (fully inline-editable) ──────────────────────
+function ProductCard({ p, cur, categories, saving, onUpdate, onStockChange, onEdit, onToggleHide }) {
+  const [imgError, setImgError]     = useState(false)
+  const [editing, setEditing]       = useState(null) // 'name' | 'cat' | 'sell_price' | null
+  const [draft, setDraft]           = useState('')
+  const [uploading, setUploading]   = useState(false)
+  const fileRef = useRef(null)
 
   const stockColor =
     p.stock === null || p.stock === undefined ? 'border-gray-100' :
     p.stock <= 0 ? 'border-red-200 bg-red-50/40' :
     p.stock <= 5 ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'
 
+  const startEdit = (field, current) => { setEditing(field); setDraft(String(current ?? '')) }
+  const cancelEdit = () => { setEditing(null); setDraft('') }
+
+  const commitEdit = async () => {
+    if (editing === 'name') {
+      const v = draft.trim()
+      if (!v) { toast.error('الاسم مطلوب'); return }
+      if (v !== p.name) await onUpdate(p.id, { name: v })
+    } else if (editing === 'sell_price') {
+      const v = parseFloat(draft) || 0
+      if (v !== p.sell_price) await onUpdate(p.id, { sell_price: v })
+    } else if (editing === 'cat') {
+      const cat = categories.find(c => c.name === draft)
+      if (cat?.id !== p.category_id) await onUpdate(p.id, { category_id: cat?.id || null })
+    }
+    cancelEdit()
+  }
+
+  const onImageClick = () => fileRef.current?.click()
+
+  const handleImageUpload = async (file) => {
+    if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const fileName = `${p.id}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('product-images').getPublicUrl(fileName)
+      await onUpdate(p.id, { image_url: data.publicUrl })
+      toast.success('✔ تم رفع الصورة', { duration: 800 })
+      setImgError(false)
+    } else {
+      toast.error('فشل رفع الصورة')
+    }
+    setUploading(false)
+  }
+
   return (
     <div className={`bg-white rounded-2xl overflow-hidden flex flex-col border-2 shadow-sm hover:shadow-md transition-all ${stockColor} ${p.is_hidden ? 'opacity-60' : ''}`}>
-      <div className="relative bg-gray-50 flex items-center justify-center flex-shrink-0" style={{ height: 100 }}>
+      {/* Image — click to upload */}
+      <button type="button" onClick={onImageClick}
+        className="relative bg-gray-50 flex items-center justify-center flex-shrink-0 hover:bg-gray-100 active:bg-gray-200 transition group"
+        style={{ height: 100 }}
+        title="انقر لتغيير الصورة">
         {p.image_url && !imgError
           ? <img src={p.image_url} alt={p.name} className="w-full h-full object-contain p-1" loading="lazy" onError={() => setImgError(true)} />
           : <span className="text-4xl">{p.emoji || '📦'}</span>
         }
+        {uploading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="text-white text-xs font-bold">جاري الرفع...</span></div>}
+        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">📷 تغيير</span>
         {p.is_hidden && <span className="absolute top-1 right-1 bg-gray-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">مخفي</span>}
         {p.stock !== null && p.stock <= 0 && <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">نفد</span>}
-      </div>
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => handleImageUpload(e.target.files?.[0])} />
 
       <div className="flex flex-col flex-1 p-2 gap-1">
-        <p className="text-[11px] font-bold text-gray-800 leading-snug"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.2rem' }}>
-          {p.name}
-        </p>
-        <p className="text-[10px] text-primary font-semibold truncate">{p.categories?.name || p.cat || ''}</p>
+        {/* Name — click to edit */}
+        {editing === 'name' ? (
+          <input autoFocus value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={e => { if (e.key === 'Enter') commitEdit(); else if (e.key === 'Escape') cancelEdit() }}
+            className="inp text-[11px] font-bold py-0.5"
+            style={{ height: 'auto', minHeight: '2.2rem' }} />
+        ) : (
+          <p onClick={() => startEdit('name', p.name)}
+            className="text-[11px] font-bold text-gray-800 leading-snug cursor-pointer hover:bg-blue-50 hover:ring-1 ring-blue-200 rounded px-0.5 -mx-0.5 transition"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.2rem' }}
+            title="انقر للتعديل">
+            {p.name}
+          </p>
+        )}
+
+        {/* Category — click to change */}
+        {editing === 'cat' ? (
+          <select autoFocus value={draft}
+            onChange={async e => { setDraft(e.target.value); /* commit immediately */ const cat = categories.find(c => c.name === e.target.value); if (cat?.id !== p.category_id) await onUpdate(p.id, { category_id: cat?.id || null }); cancelEdit() }}
+            onBlur={cancelEdit}
+            className="inp text-[10px] py-0.5 font-semibold">
+            <option value="">— بدون قسم —</option>
+            {categories.filter(c => c.name !== 'الكل').map(c => (
+              <option key={c.name} value={c.name}>{c.emoji} {c.name}</option>
+            ))}
+          </select>
+        ) : (
+          <p onClick={() => startEdit('cat', p.categories?.name || p.cat || '')}
+            className="text-[10px] text-primary font-semibold truncate cursor-pointer hover:bg-blue-50 hover:ring-1 ring-blue-200 rounded px-0.5 -mx-0.5 transition"
+            title="انقر لتغيير القسم">
+            {p.categories?.name || p.cat || '— بدون قسم —'}
+          </p>
+        )}
+
+        {/* Sell price — click to edit */}
         <div className="flex items-center justify-between mt-auto">
-          <span className="text-xs font-black text-red-600">{fmt(p.sell_price)}</span>
+          {editing === 'sell_price' ? (
+            <input autoFocus type="number" step="0.01" min="0"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); else if (e.key === 'Escape') cancelEdit() }}
+              className="inp text-xs font-black text-red-600 py-0.5 w-full" />
+          ) : (
+            <span onClick={() => startEdit('sell_price', p.sell_price)}
+              className="text-xs font-black text-red-600 cursor-pointer hover:bg-red-50 hover:ring-1 ring-red-200 rounded px-1 -mx-1 transition"
+              title="انقر لتغيير السعر">
+              {fmt(p.sell_price)}
+            </span>
+          )}
           <span className="text-[10px] text-muted">{cur}</span>
         </div>
 
+        {/* Stock — already inline */}
         <input
           type="number" min="0" placeholder="∞"
           defaultValue={p.stock !== null ? p.stock : ''}
@@ -225,12 +320,13 @@ function ProductCard({ p, cur, saving, onStockChange, onEdit, onToggleHide }) {
           onKeyDown={e => e.key === 'Enter' && onStockChange(p.id, e.target.value)}
           className="inp text-center font-black text-xs py-1 mt-1"
           style={{ height: 28 }}
+          title="المخزون"
         />
         {saving && <span className="text-[9px] text-muted text-center animate-pulse">حفظ...</span>}
 
         <div className="flex gap-1 mt-1">
-          <button onClick={onEdit}
-            className="flex-1 bg-primary-light text-primary rounded-lg py-1 text-[10px] font-bold hover:bg-primary hover:text-white transition-colors">✏️</button>
+          <button onClick={onEdit} title="إعدادات متقدمة"
+            className="flex-1 bg-primary-light text-primary rounded-lg py-1 text-[10px] font-bold hover:bg-primary hover:text-white transition-colors">⚙</button>
           <button onClick={onToggleHide}
             className="flex-1 bg-gray-100 text-gray-500 rounded-lg py-1 text-[10px] font-bold hover:bg-gray-200 transition-colors">
             {p.is_hidden ? '👁' : '🙈'}
@@ -343,7 +439,15 @@ export default function StockPage() {
               key={p.id}
               p={p}
               cur={cur}
+              categories={categories}
               saving={saving[p.id]}
+              onUpdate={async (id, data) => {
+                setSaving(s => ({ ...s, [id]: true }))
+                const { error } = await updateProduct(id, data)
+                setSaving(s => ({ ...s, [id]: false }))
+                if (error) toast.error('فشل الحفظ')
+                else toast.success('✔ تم الحفظ', { duration: 600 })
+              }}
               onStockChange={handleStockChange}
               onEdit={() => { setEdit(p); setShow(true) }}
               onToggleHide={async () => {
