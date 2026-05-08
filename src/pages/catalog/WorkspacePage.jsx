@@ -413,25 +413,32 @@ export default function WorkspacePage() {
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl"
       style={{ background: COLORS.pageBg }}>
-      {/* Tab bar — colorful pill design */}
-      <div className="flex-shrink-0 px-2 pt-2" style={{ background: COLORS.brand }}>
-        <div className="flex gap-1.5 overflow-x-auto pb-2">
+      {/* Tab bar — colorful pill design, tablet-friendly tap targets */}
+      <div className="flex-shrink-0 px-3 pt-3" style={{ background: COLORS.brand }}>
+        <div className="flex gap-2 overflow-x-auto pb-3">
           {TABS.map(t => {
             const active = tab === t.key
             return (
               <button key={t.key} onClick={() => goTab(t.key)}
-                className="relative flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition flex-shrink-0"
+                className="relative flex items-center gap-2 rounded-2xl whitespace-nowrap transition flex-shrink-0 active:scale-95"
                 style={{
+                  // 48px min-height for thumb-friendly tablet taps
+                  minHeight: 48,
+                  padding: '10px 18px',
+                  fontSize: 15,
+                  fontWeight: 600,
                   background: active ? 'white' : 'rgba(255,255,255,0.12)',
                   color: active ? COLORS.brand : 'white',
-                  boxShadow: active ? '0 4px 12px rgba(0,0,0,0.12)' : 'none',
+                  boxShadow: active ? '0 4px 12px rgba(0,0,0,0.18)' : 'none',
+                  border: 'none', cursor: 'pointer',
                 }}>
-                <span>{t.icon}</span><span>{t.label}</span>
+                <span style={{ fontSize: 18 }}>{t.icon}</span><span>{t.label}</span>
                 {t.badge != null && (
-                  <span className="text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1"
+                  <span className="rounded-full font-bold flex items-center justify-center"
                     style={{
                       background: active ? COLORS.brand : COLORS.warn,
                       color: 'white',
+                      minWidth: 22, height: 22, fontSize: 12, padding: '0 6px',
                     }}>
                     {t.badge}
                   </span>

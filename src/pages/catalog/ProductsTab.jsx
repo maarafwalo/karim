@@ -62,10 +62,10 @@ export default function ProductsTab({ onOpenCart }) {
         })}
       </div>
 
-      {/* Products grid — auto-fits 2 cols on phone, 3+ on tablet */}
+      {/* Products grid — auto-fits 2 cols on phone, 3 on tablet, 4-5 on desktop */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-        gap: 10, paddingBottom: 100,
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+        gap: 12, paddingBottom: 120,
       }}>
         {filtered.map((p) => {
           const qty = inCartQty(p.id)
@@ -91,41 +91,50 @@ export default function ProductsTab({ onOpenCart }) {
         </div>
       )}
 
-      {/* Sticky cart bar */}
+      {/* Sticky cart bar — entire bar is one big tap target */}
       {bagCount > 0 && (
-        <div style={{
-          position: 'fixed', bottom: 16, left: 16, right: 16,
-          background: COLORS.success, borderRadius: 16, padding: '14px 18px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          color: 'white', boxShadow: '0 8px 24px rgba(22, 163, 74, 0.35)', zIndex: 30,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={onOpenCart}
+          style={{
+            position: 'fixed', bottom: 16, left: 16, right: 16,
+            background: COLORS.success, borderRadius: 16, padding: '16px 20px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            color: 'white', boxShadow: '0 8px 24px rgba(22, 163, 74, 0.35)', zIndex: 30,
+            border: 'none', cursor: 'pointer', textAlign: 'inherit',
+            // Bigger min-height for tablet thumbs + safe-area padding for iPad PWA
+            minHeight: 64,
+            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          }}
+          onTouchStart={(e) => { e.currentTarget.style.transform = 'scale(0.98)' }}
+          onTouchEnd={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
-              background: 'rgba(255,255,255,0.2)', width: 44, height: 44, borderRadius: 12,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, position: 'relative',
+              background: 'rgba(255,255,255,0.2)', width: 48, height: 48, borderRadius: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, position: 'relative',
             }}>
               🧺
               <span style={{
-                position: 'absolute', top: -4, left: -4, background: COLORS.warn,
-                minWidth: 20, height: 20, borderRadius: 999, fontSize: 11,
+                position: 'absolute', top: -6, left: -6, background: COLORS.warn,
+                minWidth: 22, height: 22, borderRadius: 999, fontSize: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '0 5px', fontWeight: 500,
+                padding: '0 6px', fontWeight: 600,
               }}>
                 {bagCount}
               </span>
             </div>
             <div>
               <div style={{ fontSize: 12, opacity: 0.9 }}>مجموع السلة</div>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>{money(bagTotal)} درهم</div>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>{money(bagTotal)} درهم</div>
             </div>
           </div>
-          <button onClick={onOpenCart} style={{
-            background: 'white', color: COLORS.success, border: 'none',
-            padding: '12px 22px', borderRadius: 12, fontSize: 15, fontWeight: 500, cursor: 'pointer',
+          <span style={{
+            background: 'white', color: COLORS.success,
+            padding: '12px 24px', borderRadius: 12, fontSize: 16, fontWeight: 600,
           }}>
             عرض السلة ←
-          </button>
-        </div>
+          </span>
+        </button>
       )}
     </div>
   )
@@ -196,19 +205,19 @@ function ProductCard({ product, qty, inCart, onAdd, onDec }) {
           }}>
             <button onClick={onDec} style={{
               background: '#fee2e2', color: COLORS.danger, border: 'none',
-              flex: 1, height: 44, fontSize: 22, fontWeight: 500, cursor: 'pointer',
-            }}>−</button>
-            <div style={{ width: 48, textAlign: 'center', fontWeight: 500, fontSize: 17 }}>{qty}</div>
+              flex: 1, height: 48, fontSize: 24, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-95 transition">−</button>
+            <div style={{ width: 56, textAlign: 'center', fontWeight: 600, fontSize: 18 }}>{qty}</div>
             <button onClick={onAdd} style={{
               background: '#dcfce7', color: '#166534', border: 'none',
-              flex: 1, height: 44, fontSize: 22, fontWeight: 500, cursor: 'pointer',
-            }}>+</button>
+              flex: 1, height: 48, fontSize: 24, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-95 transition">+</button>
           </div>
         ) : (
           <button onClick={onAdd} style={{
             background: COLORS.brand, color: 'white', border: 'none',
-            width: '100%', height: 44, borderRadius: 12, fontSize: 15, fontWeight: 500, cursor: 'pointer',
-          }}>
+            width: '100%', height: 48, borderRadius: 12, fontSize: 16, fontWeight: 600, cursor: 'pointer',
+          }} className="active:scale-95 transition">
             ➕ أضف
           </button>
         )}

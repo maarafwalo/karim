@@ -341,13 +341,13 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
             }}>
               <button onClick={onDec} style={{
                 background: '#fee2e2', color: COLORS.danger, border: 'none',
-                width: 36, height: 36, fontSize: 18, cursor: 'pointer',
-              }}>−</button>
-              <div style={{ width: 36, textAlign: 'center', fontWeight: 500 }}>{item.qty}</div>
+                width: 44, height: 44, fontSize: 22, fontWeight: 600, cursor: 'pointer',
+              }} className="active:scale-90 transition">−</button>
+              <div style={{ width: 44, textAlign: 'center', fontWeight: 600, fontSize: 17 }}>{item.qty}</div>
               <button onClick={onInc} style={{
                 background: '#dcfce7', color: '#166534', border: 'none',
-                width: 36, height: 36, fontSize: 18, cursor: 'pointer',
-              }}>+</button>
+                width: 44, height: 44, fontSize: 22, fontWeight: 600, cursor: 'pointer',
+              }} className="active:scale-90 transition">+</button>
             </div>
           </div>
 
@@ -360,15 +360,15 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
             }}>
               <button onClick={onPriceDown} style={{
                 background: 'transparent', color: '#92400e', border: 'none',
-                width: 32, height: 36, fontSize: 16, cursor: 'pointer',
-              }}>−</button>
+                width: 40, height: 44, fontSize: 20, fontWeight: 600, cursor: 'pointer',
+              }} className="active:scale-90 transition">−</button>
               <div style={{
-                minWidth: 56, textAlign: 'center', fontWeight: 500, color: '#92400e',
+                minWidth: 64, textAlign: 'center', fontWeight: 600, color: '#92400e', fontSize: 15,
               }}>{money(itemPrice(item))}</div>
               <button onClick={onPriceUp} style={{
                 background: 'transparent', color: '#92400e', border: 'none',
-                width: 32, height: 36, fontSize: 16, cursor: 'pointer',
-              }}>+</button>
+                width: 40, height: 44, fontSize: 20, fontWeight: 600, cursor: 'pointer',
+              }} className="active:scale-90 transition">+</button>
             </div>
           </div>
 
