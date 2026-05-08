@@ -8,18 +8,14 @@ import { useEffect, useRef, useState } from 'react'
 import { ROLE_LABELS } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
 
-const HIDE_CATALOG = import.meta.env.VITE_HIDE_CATALOG === 'true'
-
 const NAV = [
   { path: '/pos',             label: 'POS',            icon: '🛒', roles: ['admin','cashier','store_manager'] },
-  { path: '/customers',       label: 'الزبائن',        icon: '👤', roles: ['admin','cashier','delivery','store_manager'] },
-  ...(!HIDE_CATALOG ? [{ path: '/catalog', label: 'كتالوج', icon: '📋', roles: ['admin'] }] : []),
+  { path: '/customers',       label: 'الزبائن',        icon: '👤', roles: ['cashier','delivery','store_manager'] },
   { path: '/workspace',       label: 'ساحة',           icon: '🧰', roles: ['admin'] },
   { path: '/debt',            label: 'محاسبة',         icon: '💼', roles: ['cashier','delivery','store_manager'] },
   { path: '/stock',           label: 'مخزن',           icon: '📦', roles: ['admin','stock_manager','assistant','store_manager'] },
   { path: '/suppliers',       label: 'موردون',         icon: '🚚', roles: ['stock_manager'] },
   { path: '/reports',         label: 'تقارير',         icon: '📊', roles: ['store_manager'] },
-  { path: '/partner-account',  label: 'حساب سعيد',       icon: '🤝', roles: ['admin'] },
   { path: '/partner-catalog',  label: 'طلب بضاعة',       icon: '🛒', roles: ['trusted_partner'] },
   { path: '/my-account',       label: 'حسابي',            icon: '⚖️', roles: ['trusted_partner'] },
   { path: '/admin',           label: 'إدارة',          icon: '⚙️', roles: ['admin'] },
@@ -164,7 +160,7 @@ export default function AppLayout() {
               }`}
             >
               <span>{n.icon}</span><span>{n.label}</span>
-              {n.path === '/partner-account' && unverifiedCount > 0 && (
+              {n.path === '/admin' && unverifiedCount > 0 && (
                 <span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                   {unverifiedCount}
                 </span>
