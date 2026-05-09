@@ -130,15 +130,30 @@ export default function VendorOrdersTab() {
   }
 
   const deleteOrder = async (order) => {
-    if (!confirm(`حذف الطلب #${order.order_number}؟`)) return
+    if (!window.confirm(`حذف الطلب #${order.order_number}؟`)) return
     setBusyId(order.id)
     const db = supabaseAdmin || supabase
-    await db.from('catalog_order_items').delete().eq('order_id', order.id)
-    const { error } = await db.from('catalog_orders').delete().eq('id', order.id)
-    setBusyId(null)
-    if (error) { toast.error('فشل الحذف: ' + error.message); return }
-    toast.success('تم الحذف')
-    setOrders(prev => prev.filter(o => o.id !== order.id))
+    try {
+      // Delete child items first; surface RLS / network errors instead of
+      // silently moving on (which used to leave orphaned items in DB).
+      const { error: itemsErr } = await db.from('catalog_order_items')
+        .delete().eq('order_id', order.id)
+      if (itemsErr) {
+        console.error('catalog_order_items delete failed:', itemsErr)
+        toast.error(`فشل حذف الأصناف: ${itemsErr.message || 'صلاحية مفقودة'}`, { duration: 6000 })
+        return
+      }
+      const { error } = await db.from('catalog_orders').delete().eq('id', order.id)
+      if (error) {
+        console.error('catalog_orders delete failed:', error)
+        toast.error(`فشل الحذف: ${error.message || 'صلاحية مفقودة'}`, { duration: 6000 })
+        return
+      }
+      toast.success('تم الحذف')
+      setOrders(prev => prev.filter(o => o.id !== order.id))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const filtered = useMemo(() => {
