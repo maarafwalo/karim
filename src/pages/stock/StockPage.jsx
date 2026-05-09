@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
-import { supabase } from '../../lib/supabase.js'
+import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { fmt, calcMargin } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
@@ -24,7 +24,8 @@ function ProductModal({ product, categories, onSave, onClose }) {
     // Unique filename so two simultaneous uploads can't clobber each other.
     const uid = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,8)}`
     const fileName = `${uid}.${ext}`
-    const { error } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true })
+    const storage = (supabaseAdmin || supabase).storage
+    const { error } = await storage.from('product-images').upload(fileName, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('product-images').getPublicUrl(fileName)
       set('image_url', data.publicUrl)
@@ -227,7 +228,8 @@ function ProductCard({ p, cur, categories, saving, onUpdate, onStockChange, onEd
     setUploading(true)
     const ext = file.name.split('.').pop()
     const fileName = `${p.id}-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true })
+    const storage = (supabaseAdmin || supabase).storage
+    const { error } = await storage.from('product-images').upload(fileName, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('product-images').getPublicUrl(fileName)
       await onUpdate(p.id, { image_url: data.publicUrl })

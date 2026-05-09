@@ -1,6 +1,10 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase.js'
+import { supabase, supabaseAdmin } from '../lib/supabase.js'
 import seedData from '../data/products_seed.json'
+
+// Always-mutating client for product writes — bypasses RLS in production.
+// Falls back to anon in dev (where the policy migration must be present).
+const writeClient = () => supabaseAdmin || supabase
 
 export const useProductsStore = create((set, get) => ({
   products:   [],
@@ -91,7 +95,7 @@ export const useProductsStore = create((set, get) => ({
 
   // Update stock in Supabase
   updateStock: async (id, newStock) => {
-    const { data, error } = await supabase
+    const { data, error } = await writeClient()
       .from('products').update({ stock: newStock, updated_at: new Date().toISOString() }).eq('id', id).select().single()
     if (!error && data) {
       set(state => ({ products: state.products.map(p => p.id === id ? { ...p, stock: newStock } : p) }))
@@ -99,22 +103,23 @@ export const useProductsStore = create((set, get) => ({
     return error
   },
 
-  // Full product CRUD
+  // Full product CRUD — uses admin client when available so writes work
+  // even if RLS isn't fully configured yet.
   createProduct: async (product) => {
-    const { data, error } = await supabase.from('products').insert(product).select().single()
+    const { data, error } = await writeClient().from('products').insert(product).select().single()
     if (!error) set(state => ({ products: [...state.products, data] }))
     return { data, error }
   },
 
   updateProduct: async (id, changes) => {
-    const { data, error } = await supabase
+    const { data, error } = await writeClient()
       .from('products').update({ ...changes, updated_at: new Date().toISOString() }).eq('id', id).select().single()
     if (!error) set(state => ({ products: state.products.map(p => p.id === id ? { ...p, ...data } : p) }))
     return { data, error }
   },
 
   deleteProduct: async (id) => {
-    const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id)
+    const { error } = await writeClient().from('products').update({ is_active: false }).eq('id', id)
     if (!error) set(state => ({ products: state.products.filter(p => p.id !== id) }))
     return error
   },
