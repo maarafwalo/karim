@@ -48,6 +48,20 @@ export default function OrdersTab({ onSwitchToCart }) {
 
   useEffect(() => { load() }, [profile?.id])
 
+  // Listen for hashchange to "#orders" — re-fetch if the cart save flagged
+  // joud_orders_dirty so the freshly saved order appears immediately.
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash !== '#orders') return
+      if (sessionStorage.getItem('joud_orders_dirty')) {
+        sessionStorage.removeItem('joud_orders_dirty')
+        load()
+      }
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [profile?.id])
+
   const editOrder = async (order) => {
     // Warn if there's an unsaved bag for a different order — user might lose work
     if (currentBagItems.length > 0 && currentEditingOrder?.id !== order.id) {
@@ -92,7 +106,8 @@ export default function OrdersTab({ onSwitchToCart }) {
 
   const deleteOrder = async (order) => {
     const db = supabaseAdmin || supabase
-    await db.from('catalog_order_items').delete().eq('order_id', order.id)
+    const { error: itemsErr } = await db.from('catalog_order_items').delete().eq('order_id', order.id)
+    if (itemsErr) { toast.error('فشل حذف الأصناف: ' + itemsErr.message); return }
     const { error } = await db.from('catalog_orders').delete().eq('id', order.id)
     if (error) { toast.error('فشل الحذف: ' + error.message); return }
     toast.success('تم الحذف')

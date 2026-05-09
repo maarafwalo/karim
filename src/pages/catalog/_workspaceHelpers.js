@@ -75,7 +75,9 @@ export function statusBadge(status) {
   }
 }
 
-// bagStore item helpers: items are { product, qty, negotiatedPrice, partial? }
+// bagStore item helpers: items are { product, qty, negotiatedPrice, originalPrice?, partial? }
 export const itemPrice = (it) =>
   typeof it?.negotiatedPrice === 'number' ? it.negotiatedPrice : (it?.product?.sell_price ?? 0)
+export const itemOriginalPrice = (it) =>
+  typeof it?.originalPrice === 'number' ? it.originalPrice : (it?.product?.sell_price ?? 0)
 export const itemSubtotal = (it) => itemPrice(it) * (it?.qty ?? 0)

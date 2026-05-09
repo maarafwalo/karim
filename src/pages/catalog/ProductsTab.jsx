@@ -155,6 +155,8 @@ function CategoryChip({ active, label, onClick }) {
 }
 
 function ProductCard({ product, qty, inCart, onAdd, onDec }) {
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const showImage = product.image_url && !imgFailed
   return (
     <div style={{
       background: 'white',
@@ -176,8 +178,10 @@ function ProductCard({ product, qty, inCart, onAdd, onDec }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 52, overflow: 'hidden',
       }}>
-        {product.image_url ? (
+        {showImage ? (
           <img src={product.image_url} alt={product.name}
+            onError={() => setImgFailed(true)}
+            loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : (
           product.emoji || '📦'

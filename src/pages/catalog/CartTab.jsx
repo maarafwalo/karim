@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { generateOrderNumber } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
-import { COLORS, money, avatarColor, initials, itemPrice, itemSubtotal } from './_workspaceHelpers.js'
+import { COLORS, money, avatarColor, initials, itemPrice, itemOriginalPrice, itemSubtotal } from './_workspaceHelpers.js'
 import CustomerPickerModal from './CustomerPickerModal.jsx'
 
 export default function CartTab({ onBrowse }) {
@@ -33,32 +33,44 @@ export default function CartTab({ onBrowse }) {
   const sendOrder = async ({ skipCustomer = false } = {}) => {
     // Guard against double-click race
     if (sending) return
-    if (!skipCustomer && !hasCustomer) { toast.error('اختر زبون أولاً'); return }
+
+    // Read freshest state from the store, NOT the closure (#26 — picker
+    // setCustomer + tap save can race on slow devices).
+    const live = useBagStore.getState()
+    const liveItems    = live.items
+    const liveCustomer = live.customer
+    const liveEditing  = live.editingOrder
+    if (liveItems.length === 0) { toast.error('السلة فارغة'); return }
+
+    const liveHasCustomer = !!(liveCustomer?.name?.trim())
+    if (!skipCustomer && !liveHasCustomer) { toast.error('اختر زبون أولاً'); return }
     setSending(true)
-    const orderNum = editingOrder?.order_number || generateOrderNumber('ORD')
+
+    // Strip any leftover -tmp-… suffix from a previously failed save
+    const cleanOrderNum = (liveEditing?.order_number || '').replace(/-tmp-\d+$/, '')
+    const orderNum = cleanOrderNum || generateOrderNumber('ORD')
     const db = supabaseAdmin || supabase
-    const cName  = customer?.name?.trim()  || 'زبون عابر'
-    const cPhone = customer?.phone?.trim() || ''
-    const cAddr  = customer?.address?.trim() || ''
+    const cName  = liveCustomer?.name?.trim()  || 'زبون عابر'
+    const cPhone = liveCustomer?.phone?.trim() || ''
+    const cAddr  = liveCustomer?.address?.trim() || ''
+    const liveTotal = liveItems.reduce((s, b) => s + itemPrice(b) * (b.qty || 0), 0)
     const withTimeout = (p, ms = 8000) => Promise.race([
       p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
     ])
 
-    // Float-tolerant negotiation flag — avoids 0.30000000000000004 false-positives.
     const EPS = 0.005
 
     try {
-      // Insert-first / delete-after so a failed insert can't orphan us
-      // (#2 in the audit). The original order survives until items insert succeeds.
+      const tmpSuffix = liveEditing?.id ? `-tmp-${Date.now()}` : ''
       const { data: order, error: ordErr } = await withTimeout(
         db.from('catalog_orders').insert({
-          order_number:       orderNum + (editingOrder?.id ? `-tmp-${Date.now()}` : ''),
+          order_number:       orderNum + tmpSuffix,
           vendor_id:          profile?.id || null,
           customer_name:      cName,
           customer_phone:     cPhone,
           customer_address:   cAddr,
-          subtotal:           total,
-          total:              total,
+          subtotal:           +liveTotal.toFixed(2),
+          total:              +liveTotal.toFixed(2),
           status:             'new',
           wa_sent:            false,
           is_partner_request: false,
@@ -68,8 +80,10 @@ export default function CartTab({ onBrowse }) {
 
       const { error: itemsErr } = await withTimeout(
         db.from('catalog_order_items').insert(
-          items.map(b => {
-            const np = itemPrice(b), orig = b.product.sell_price, isNeg = Math.abs(np - orig) > EPS
+          liveItems.map(b => {
+            const np = itemPrice(b)
+            const orig = itemOriginalPrice(b) // snapshotted at add-time, not live
+            const isNeg = Math.abs(np - orig) > EPS
             const nameWithPartial = b.partial
               ? `${b.product.name} (${b.partial.units}/${b.partial.packSize})`
               : b.product.name
@@ -89,19 +103,30 @@ export default function CartTab({ onBrowse }) {
       )
       if (itemsErr) throw itemsErr
 
-      // Only NOW remove the old order — new one is already complete.
-      if (editingOrder?.id) {
-        await withTimeout(db.from('catalog_order_items').delete().eq('order_id', editingOrder.id))
-        await withTimeout(db.from('catalog_orders').delete().eq('id', editingOrder.id))
-        // Restore the original order number (we appended a tmp suffix to avoid
-        // the unique constraint while both rows existed briefly).
-        await db.from('catalog_orders').update({ order_number: orderNum }).eq('id', order.id)
+      // Replace old order if editing — items + parent. Both wrapped in withTimeout.
+      if (liveEditing?.id) {
+        await withTimeout(db.from('catalog_order_items').delete().eq('order_id', liveEditing.id))
+        await withTimeout(db.from('catalog_orders').delete().eq('id', liveEditing.id))
+        // Restore the real order_number. If this rename fails the new order is
+        // still valid, just stuck with the -tmp suffix; surface a warning
+        // toast so the admin can fix manually.
+        const { error: renameErr } = await withTimeout(
+          db.from('catalog_orders').update({ order_number: orderNum }).eq('id', order.id)
+        )
+        if (renameErr) {
+          console.warn('Order saved but rename failed:', renameErr)
+          toast(`⚠️ الطلب محفوظ لكن ببداية -tmp — نراجعه`, { duration: 5000 })
+        }
       }
 
-      toast.success(editingOrder ? `✔ تم تحديث #${orderNum}` : `✔ تم حفظ #${orderNum}`)
+      toast.success(liveEditing ? `✔ تم تحديث #${orderNum}` : `✔ تم حفظ #${orderNum}`)
       clearBag()
+      // Tell OrdersTab a save just happened so it refetches on its next mount
+      // even if it was already mounted (rare race but possible).
+      sessionStorage.setItem('joud_orders_dirty', String(Date.now()))
       window.location.hash = 'orders'
     } catch (e) {
+      console.error('sendOrder failed:', e)
       toast.error('فشل الحفظ: ' + (e.message || 'خطأ'))
     } finally {
       setSending(false)
@@ -368,7 +393,7 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
           )}
         </div>
         <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-          الأصلي {money(product.sell_price)} درهم
+          الأصلي {money(itemOriginalPrice(item))} درهم
         </div>
 
         <div style={{

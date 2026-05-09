@@ -15,8 +15,21 @@ export const useBagStore = create(
 
       addItem: (product) => set((s) => {
         const ex = s.items.find(b => b.product.id === product.id)
-        if (ex) return { items: s.items.map(b => b.product.id === product.id ? { ...b, qty: b.qty + 1 } : b) }
-        return { items: [...s.items, { product, qty: 1, negotiatedPrice: product.sell_price }] }
+        // Cap at stock if defined (null = no limit, e.g. weight-priced items)
+        const stockLimit = (product.stock != null) ? product.stock : Infinity
+        if (ex) {
+          if (ex.qty >= stockLimit) return s   // already at stock; no-op
+          return { items: s.items.map(b => b.product.id === product.id ? { ...b, qty: b.qty + 1 } : b) }
+        }
+        if (stockLimit <= 0) return s
+        // Snapshot the original price at add-time so realtime price changes
+        // don't retroactively change what the vendor saw / signed off on.
+        return { items: [...s.items, {
+          product,
+          qty: 1,
+          negotiatedPrice: product.sell_price,
+          originalPrice:   product.sell_price,
+        }]}
       }),
 
       removeItem: (id) => set((s) => ({ items: s.items.filter(b => b.product.id !== id) })),
@@ -28,7 +41,9 @@ export const useBagStore = create(
       })),
 
       setNegPrice: (id, price) => set((s) => ({
-        items: s.items.map(b => b.product.id === id ? { ...b, negotiatedPrice: parseFloat(price) || 0 } : b),
+        items: s.items.map(b => b.product.id === id
+          ? { ...b, negotiatedPrice: Math.max(0, parseFloat(price) || 0) }
+          : b),
       })),
 
       // Partial pack split: { units, packSize } — null clears it
@@ -36,15 +51,28 @@ export const useBagStore = create(
         items: s.items.map(b => {
           if (b.product.id !== id) return b
           if (!partial) {
-            // Restore full-pack price
             const { partial: _omit, ...rest } = b
-            return { ...rest, negotiatedPrice: b.product.sell_price }
+            return { ...rest, negotiatedPrice: b.originalPrice ?? b.product.sell_price }
           }
+          // Guard against malformed input: divide-by-zero / negative pack size
+          if (!partial.packSize || partial.packSize <= 0) return b
+          if (partial.units == null || partial.units < 0) return b
+          const base  = b.originalPrice ?? b.product.sell_price
           const ratio = partial.units / partial.packSize
-          const newPrice = +(b.product.sell_price * ratio).toFixed(2)
+          const newPrice = +(base * ratio).toFixed(2)
           return { ...b, partial, negotiatedPrice: newPrice }
         }),
       })),
+
+      // Drop bag items whose product_id no longer matches a live product.
+      // Called when productsStore loads / a realtime DELETE fires — keeps the
+      // saved order from referencing a deleted product (FK violation).
+      reconcile: (liveProducts) => set((s) => {
+        if (!liveProducts?.length || !s.items.length) return s
+        const liveIds = new Set(liveProducts.map(p => p.id))
+        const next = s.items.filter(b => liveIds.has(b.product.id))
+        return next.length === s.items.length ? s : { items: next }
+      }),
 
       clear: () => set({
         items: [],

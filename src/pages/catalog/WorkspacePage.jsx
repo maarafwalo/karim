@@ -57,11 +57,11 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
   const recordPayment = async () => {
     const raw = parseFloat(payAmt)
     if (!raw || raw <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return }
-    // Cap the recorded amount at the outstanding balance — overpaying inflated
-    // payment history without actually paying down debt.
-    const amount = Math.min(raw, c.balance || 0)
-    if (raw > (c.balance || 0)) {
-      if (!window.confirm(`المبلغ أكبر من الدين (${fmt(c.balance || 0)} ${cur}). نسجل ${fmt(amount)} فقط؟`)) return
+    const balance = Number(c.balance) || 0
+    if (balance <= 0) { toast.error('لا يوجد دين على هذا الزبون'); return }
+    const amount = Math.min(raw, balance)
+    if (raw > balance) {
+      if (!window.confirm(`المبلغ أكبر من الدين (${fmt(balance)} ${cur}). نسجل ${fmt(amount)} فقط؟`)) return
     }
     setWorking(true)
     const { error } = await (supabaseAdmin || supabase).from('debt_payments').insert({ customer_id: c.id, amount })
@@ -254,8 +254,14 @@ function CustomersTab({ cur, onUseInCart }) {
 
   const del = async (id) => {
     if (!confirm('حذف هذا الزبون؟')) return
-    await (supabaseAdmin || supabase).from('customers').delete().eq('id', id)
+    const { error } = await (supabaseAdmin || supabase).from('customers').delete().eq('id', id)
+    if (error) {
+      // FK violation when invoices/orders reference this customer — common.
+      toast.error('لا يمكن الحذف: ' + (error.message || 'الزبون مرتبط بفواتير'), { duration: 5000 })
+      return
+    }
     setCustomers(c => c.filter(x => x.id !== id))
+    toast.success('تم الحذف')
   }
 
   const updateOne = (updated) => {

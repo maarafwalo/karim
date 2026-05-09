@@ -2,6 +2,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore.js'
 import { useSettingsStore } from '../stores/settingsStore.js'
 import { useProductsStore } from '../stores/productsStore.js'
+import { useBagStore } from '../stores/bagStore.js'
 import { useCameraStore, getGlobalStream } from '../stores/cameraStore.js'
 import { usePermissionsStore } from '../stores/permissionsStore.js'
 import { useEffect, useRef, useState } from 'react'
@@ -102,19 +103,40 @@ export default function AppLayout() {
   useEffect(() => { loadSettings(); loadProducts() }, [])
   useEffect(() => { const unsub = subscribeRealtime(); return unsub }, [])
 
-  // Poll unverified partner orders count (admin only)
+  // Drop bag items that reference products that aren't live anymore (deleted /
+  // hidden / from a different store). Runs whenever the products list updates.
+  const liveProducts = useProductsStore(s => s.products)
+  useEffect(() => {
+    if (liveProducts?.length) useBagStore.getState().reconcile(liveProducts)
+  }, [liveProducts])
+
+  // Bag survives page reloads via localStorage. If a different vendor signs
+  // in on the same device, the previous user's bag (and especially their
+  // editingOrder.id) leaks. Clear when the auth user changes.
+  useEffect(() => {
+    if (!profile?.id) return
+    const lastUser = sessionStorage.getItem('joud_bag_owner')
+    if (lastUser && lastUser !== profile.id) {
+      useBagStore.getState().clear()
+    }
+    sessionStorage.setItem('joud_bag_owner', profile.id)
+  }, [profile?.id])
+
+  // Poll unverified partner orders count (admin only). Cancel-safe so an
+  // in-flight fetch doesn't update state after profile flips role.
   useEffect(() => {
     if (profile?.role !== 'admin') return
+    let cancelled = false
     const fetchCount = async () => {
       const { count } = await supabase
         .from('partner_orders')
         .select('id', { count: 'exact', head: true })
         .eq('is_verified', false)
-      setUnverifiedCount(count || 0)
+      if (!cancelled) setUnverifiedCount(count || 0)
     }
     fetchCount()
     const interval = setInterval(fetchCount, 30000)
-    return () => clearInterval(interval)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [profile?.role])
 
   // Auto-start camera when app loads (admin only)
