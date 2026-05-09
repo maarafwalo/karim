@@ -280,19 +280,15 @@ export default function CartTab({ onBrowse }) {
           💡 <span>تحب تبيع جزء فقط من الباكية؟ اضغط <b>✂ تقسيم</b> فوق المنتج.</span>
         </div>
 
-        {/* Summary */}
-        <div style={{ padding: '16px 18px', background: '#f8fafc' }}>
-          <Row label="عدد المنتجات" value={count} />
-          <Row label="الخصم" value={`− ${money(0)}`} valueColor={COLORS.success} />
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-            padding: '12px 0 4px', borderTop: '1.5px dashed #cbd5e1', marginTop: 6,
-          }}>
-            <span style={{ fontSize: 16, fontWeight: 500 }}>المجموع الكلي</span>
-            <div>
-              <span style={{ fontSize: 28, fontWeight: 500, color: COLORS.success }}>{money(total)}</span>
-              <span style={{ fontSize: 14, color: COLORS.muted, marginRight: 4 }}>درهم</span>
-            </div>
+        {/* Summary — compact single row, count is already in the header */}
+        <div style={{
+          padding: '10px 18px', background: '#f8fafc',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: '#334155' }}>المجموع الكلي</span>
+          <div>
+            <span style={{ fontSize: 22, fontWeight: 500, color: COLORS.success }}>{money(total)}</span>
+            <span style={{ fontSize: 13, color: COLORS.muted, marginRight: 4 }}>درهم</span>
           </div>
         </div>
 
@@ -480,14 +476,3 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
   )
 }
 
-function Row({ label, value, valueColor }) {
-  return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '6px 0', fontSize: 14,
-    }}>
-      <span style={{ color: COLORS.muted }}>{label}</span>
-      <span style={{ fontWeight: 500, color: valueColor || 'inherit' }}>{value}</span>
-    </div>
-  )
-}
