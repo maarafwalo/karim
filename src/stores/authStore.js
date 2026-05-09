@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase.js'
 import { useBagStore } from './bagStore.js'
+import { useCartStore } from './cartStore.js'
 
 export const useAuthStore = create((set, get) => ({
   user:    null,
@@ -54,9 +55,14 @@ export const useAuthStore = create((set, get) => ({
   },
 
   signOut: async () => {
-    // Drop persisted vendor state so the next user on this device starts clean.
+    // Drop persisted vendor + cashier state so the next user on this device
+    // starts clean. Without this, user A's held carts / cart items / customer /
+    // bag / editing flag all leak to user B logging in on the same browser.
     try {
       useBagStore.getState().clear()
+      useCartStore.getState().clear()
+      // Also wipe heldCarts since clear() doesn't drop them.
+      useCartStore.setState({ heldCarts: [] })
       sessionStorage.removeItem('joud_bag_owner')
       sessionStorage.removeItem('joud_orders_dirty')
     } catch {}

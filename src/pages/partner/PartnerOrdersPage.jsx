@@ -170,17 +170,28 @@ export default function PartnerOrdersPage() {
         ))
       }
 
-      // 2. Now flip the approval flag.
-      const { error } = await supabase
+      // 2. Now flip the approval flag. The .eq('stock_approved', false) clause
+      //    is a DB-side race guard: if a parallel admin tab approved the same
+      //    order between our items-fetch and our update, the WHERE matches
+      //    zero rows, count comes back 0, and we error out instead of
+      //    double-deducting stock.
+      const { error, count } = await supabase
         .from('catalog_orders')
         .update({
           stock_approved:    true,
           stock_approved_by: profile?.id,
           stock_approved_at: new Date().toISOString(),
           status:            'approved',
-        })
+        }, { count: 'exact' })
         .eq('id', orderId)
+        .eq('stock_approved', false)
       if (error) throw error
+      if (count === 0) {
+        toast('⚠️ هذا الطلب تم تأكيده بالفعل من نافذة أخرى', { duration: 4000 })
+        // Refresh local view so it reflects the other tab's update
+        load()
+        return
+      }
 
       toast.success('✅ تم تأكيد خروج البضاعة + خصم المخزون')
       setOrders(prev => prev.map(o =>

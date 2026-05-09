@@ -631,6 +631,7 @@ function WeightModal({ open, onClose, products, cur, onAdd }) {
   const [matched, setMatched] = useState(null)   // matched product
   const pollRef               = useRef(null)
   const inputRef              = useRef(null)
+  const savingRef             = useRef(false)
 
   // Poll /weight every 500ms while open
   useEffect(() => {
@@ -1051,6 +1052,10 @@ export default function POSPage() {
 
   const handleConfirm = async (shouldPrint = false) => {
     if (!cart.items.length) { toast.error('السلة فارغة!'); return }
+    // Bullet-proof double-tap guard. setShowPayment(false) doesn't take effect
+    // synchronously — a fast second tap can fire two pos_invoices inserts.
+    if (savingRef.current) return
+    savingRef.current = true
     setShowPayment(false)
 
     const PAY_LABELS = { cash:'نقود', card:'بطاقة', credit:'كريدي', check:'شيك', debt:'دين' }
@@ -1111,6 +1116,7 @@ export default function POSPage() {
       if (error) {
         console.error('[POS] invoice insert failed:', error)
         toast.error(`خطأ في حفظ الفاتورة: ${error.message} (${error.code || error.details || ''})`, { duration: 8000 })
+        savingRef.current = false  // Allow retry
         return  // Keep cart intact so cashier can retry
       }
 
@@ -1129,6 +1135,7 @@ export default function POSPage() {
       // Network error during invoice insert — nothing was saved
       console.error('[POS] invoice save error:', e)
       toast.error('لا يوجد اتصال — الفاتورة لم تُحفظ. حاول مجدداً.')
+      savingRef.current = false  // Allow retry
       return  // Keep cart intact so cashier can retry
     }
 
@@ -1142,11 +1149,13 @@ export default function POSPage() {
       } catch (_) { /* offline — stock will be corrected on next sync */ }
     }))
 
-    // Debt tracking
+    // Debt tracking. Clamp at 0 so a refund on credit/debt against a
+    // zero-balance customer doesn't push them negative.
     if (cart.customer?.id && ['credit','debt'].includes(cart.paymentMethod)) {
       try {
         const { data: cust } = await db.from('customers').select('balance').eq('id', cart.customer.id).single()
-        await db.from('customers').update({ balance: (cust?.balance||0) + totals.total }).eq('id', cart.customer.id)
+        const newBal = Math.max(0, (cust?.balance || 0) + totals.total)
+        await db.from('customers').update({ balance: newBal }).eq('id', cart.customer.id)
       } catch (_) {}
     }
 
@@ -1196,6 +1205,7 @@ export default function POSPage() {
     if (shouldPrint) { setPendingPrint(true); setShowPostPay(false) }
     else setShowPostPay(true)
     setShowPayment(false)
+    savingRef.current = false
   }
 
   const [invoiceFilter, setInvoiceFilter] = useState({ from: new Date().toISOString().slice(0,10), to: new Date().toISOString().slice(0,10), customer: '' })

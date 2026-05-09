@@ -23,7 +23,11 @@ export const useCartStore = create(
             ? product.wholesale_price
             : product.sell_price
           const productWithPrice = { ...product, sell_price: price }
-          const existing = state.items.find(i => i.id === product.id)
+          // Match only non-return lines — same product can exist as a refund
+          // line and a fresh-sale line simultaneously, and those must stay
+          // separate. Without the !isReturn guard, +qty on a refund row
+          // silently turned it into a sale row.
+          const existing = state.items.find(i => i.id === product.id && !i.isReturn)
           const maxQty   = ignoreStock ? Infinity : (product.stock ?? Infinity)
           if (existing) {
             if (existing.qty >= maxQty) { status = 'maxStock'; return state }
@@ -205,6 +209,20 @@ export const useCartStore = create(
         return { subtotal, discount, returnTotal, tva, tvaRate, total, isRefund, change, amountPaid }
       },
     }),
-    { name: 'joud_cart', partialize: (s) => ({ items: s.items, customer: s.customer, heldCarts: s.heldCarts }) }
+    {
+      name: 'joud_cart',
+      // Persist enough state that a mid-sale page reload keeps the discount,
+      // payment method, notes, and return mode the cashier already applied.
+      partialize: (s) => ({
+        items:         s.items,
+        customer:      s.customer,
+        heldCarts:     s.heldCarts,
+        discountType:  s.discountType,
+        discountValue: s.discountValue,
+        paymentMethod: s.paymentMethod,
+        notes:         s.notes,
+        returnMode:    s.returnMode,
+      }),
+    }
   )
 )

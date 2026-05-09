@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore.js'
 import { useSettingsStore } from '../stores/settingsStore.js'
 import { useProductsStore } from '../stores/productsStore.js'
 import { useBagStore } from '../stores/bagStore.js'
+import { useCartStore } from '../stores/cartStore.js'
 import { useCameraStore, getGlobalStream } from '../stores/cameraStore.js'
 import { usePermissionsStore } from '../stores/permissionsStore.js'
 import { useEffect, useRef, useState } from 'react'
@@ -110,14 +111,17 @@ export default function AppLayout() {
     if (liveProducts?.length) useBagStore.getState().reconcile(liveProducts)
   }, [liveProducts])
 
-  // Bag survives page reloads via localStorage. If a different vendor signs
-  // in on the same device, the previous user's bag (and especially their
-  // editingOrder.id) leaks. Clear when the auth user changes.
+  // Bag + cart survive page reloads via localStorage. If a different user
+  // signs in on the same device, the previous user's bag (and editingOrder.id)
+  // and the previous cashier's cart + heldCarts leak. Clear both on user
+  // change so each session starts clean.
   useEffect(() => {
     if (!profile?.id) return
     const lastUser = sessionStorage.getItem('joud_bag_owner')
     if (lastUser && lastUser !== profile.id) {
       useBagStore.getState().clear()
+      useCartStore.getState().clear()
+      useCartStore.setState({ heldCarts: [] })
     }
     sessionStorage.setItem('joud_bag_owner', profile.id)
   }, [profile?.id])
