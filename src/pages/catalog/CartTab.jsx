@@ -226,13 +226,8 @@ export default function CartTab({ onBrowse }) {
           padding: '14px 18px', display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', borderBottom: `1.5px solid ${COLORS.border}`,
         }}>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 500 }}>
-              {count} {count === 1 ? 'منتج' : 'منتجات'} في السلة
-            </div>
-            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-              يمكنك تعديل الكمية والسعر
-            </div>
+          <div style={{ fontSize: 17, fontWeight: 500 }}>
+            {count} {count === 1 ? 'منتج' : 'منتجات'} في السلة
           </div>
           <button
             onClick={() => { if (window.confirm('هل تريد إفراغ السلة؟')) clearBag() }}
@@ -270,15 +265,6 @@ export default function CartTab({ onBrowse }) {
             }}
           />
         ))}
-
-        {/* Tip */}
-        <div style={{
-          padding: '10px 18px', background: '#fef9c3',
-          display: 'flex', alignItems: 'center', gap: 8,
-          fontSize: 13, color: '#713f12',
-        }}>
-          💡 <span>تحب تبيع جزء فقط من الباكية؟ اضغط <b>✂ تقسيم</b> فوق المنتج.</span>
-        </div>
 
         {/* Summary — compact single row, count is already in the header */}
         <div style={{
@@ -377,17 +363,20 @@ export default function CartTab({ onBrowse }) {
 function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit }) {
   const product = item.product
   const lineTotal = itemSubtotal(item)
+  const price = itemPrice(item)
+  const orig = itemOriginalPrice(item)
+  const negotiated = Math.abs(price - orig) > 0.005 || !!item.partial
   const [imgFailed, setImgFailed] = React.useState(false)
   const showImage = product.image_url && !imgFailed
   return (
     <div style={{
       padding: '14px 18px', borderBottom: `1.5px solid ${COLORS.border}`,
-      display: 'flex', gap: 14, alignItems: 'center',
+      display: 'flex', gap: 12, alignItems: 'center',
     }}>
       <div style={{
-        width: 64, height: 64, borderRadius: 12, background: '#ecfdf5',
+        width: 56, height: 56, borderRadius: 12, background: '#ecfdf5',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 32, flexShrink: 0, overflow: 'hidden',
+        fontSize: 28, flexShrink: 0, overflow: 'hidden',
       }}>
         {showImage ? (
           <img src={product.image_url} alt={product.name}
@@ -398,78 +387,76 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 500 }}>
-          {product.name}
+        <div style={{ fontSize: 15, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 0 }}>{product.name}</span>
           {item.partial && (
             <span style={{
-              marginInlineStart: 6, background: '#ede9fe', color: '#5b21b6',
+              background: '#ede9fe', color: '#5b21b6',
               fontSize: 11, padding: '2px 6px', borderRadius: 6, fontWeight: 500,
             }}>
               {item.partial.units}/{item.partial.packSize}
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-          الأصلي {money(itemOriginalPrice(item))} درهم
-        </div>
+        {/* Show original price only when negotiated — otherwise it's redundant */}
+        {negotiated && (
+          <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>
+            الأصلي {money(orig)} درهم
+          </div>
+        )}
 
         <div style={{
-          display: 'flex', gap: 10, marginTop: 10,
+          display: 'flex', gap: 8, marginTop: 8,
           alignItems: 'center', flexWrap: 'wrap',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 11, color: COLORS.muted }}>الكمية</span>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              border: `1.5px solid ${COLORS.borderStrong}`, borderRadius: 10, overflow: 'hidden',
-            }}>
-              <button onClick={onDec} style={{
-                background: '#fee2e2', color: COLORS.danger, border: 'none',
-                width: 44, height: 44, fontSize: 22, fontWeight: 600, cursor: 'pointer',
-              }} className="active:scale-90 transition">−</button>
-              <div style={{ width: 44, textAlign: 'center', fontWeight: 600, fontSize: 17 }}>{item.qty}</div>
-              <button onClick={onInc} style={{
-                background: '#dcfce7', color: '#166534', border: 'none',
-                width: 44, height: 44, fontSize: 22, fontWeight: 600, cursor: 'pointer',
-              }} className="active:scale-90 transition">+</button>
-            </div>
+          {/* Qty stepper — self-explanatory, no label */}
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            border: `1.5px solid ${COLORS.borderStrong}`, borderRadius: 10, overflow: 'hidden',
+          }}>
+            <button onClick={onDec} style={{
+              background: '#fee2e2', color: COLORS.danger, border: 'none',
+              width: 40, height: 40, fontSize: 20, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-90 transition">−</button>
+            <div style={{ width: 36, textAlign: 'center', fontWeight: 600, fontSize: 16 }}>{item.qty}</div>
+            <button onClick={onInc} style={{
+              background: '#dcfce7', color: '#166534', border: 'none',
+              width: 40, height: 40, fontSize: 20, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-90 transition">+</button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 11, color: COLORS.muted }}>السعر</span>
+          {/* Price stepper — amber tint signals it's editable */}
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            border: '1.5px solid #fde68a', background: '#fffbeb',
+            borderRadius: 10, overflow: 'hidden',
+          }}>
+            <button onClick={onPriceDown} style={{
+              background: 'transparent', color: '#92400e', border: 'none',
+              width: 36, height: 40, fontSize: 18, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-90 transition">−</button>
             <div style={{
-              display: 'flex', alignItems: 'center',
-              border: '1.5px solid #fde68a', background: '#fffbeb',
-              borderRadius: 10, overflow: 'hidden',
-            }}>
-              <button onClick={onPriceDown} style={{
-                background: 'transparent', color: '#92400e', border: 'none',
-                width: 40, height: 44, fontSize: 20, fontWeight: 600, cursor: 'pointer',
-              }} className="active:scale-90 transition">−</button>
-              <div style={{
-                minWidth: 64, textAlign: 'center', fontWeight: 600, color: '#92400e', fontSize: 15,
-              }}>{money(itemPrice(item))}</div>
-              <button onClick={onPriceUp} style={{
-                background: 'transparent', color: '#92400e', border: 'none',
-                width: 40, height: 44, fontSize: 20, fontWeight: 600, cursor: 'pointer',
-              }} className="active:scale-90 transition">+</button>
-            </div>
+              minWidth: 56, textAlign: 'center', fontWeight: 600, color: '#92400e', fontSize: 14,
+            }}>{money(price)}</div>
+            <button onClick={onPriceUp} style={{
+              background: 'transparent', color: '#92400e', border: 'none',
+              width: 36, height: 40, fontSize: 18, fontWeight: 600, cursor: 'pointer',
+            }} className="active:scale-90 transition">+</button>
           </div>
 
           <button onClick={onSplit} style={{
             background: '#ede9fe', color: '#5b21b6', border: '1.5px solid #ddd6fe',
-            padding: '8px 14px', borderRadius: 10, fontSize: 12,
+            padding: '6px 10px', borderRadius: 10, fontSize: 12,
             fontWeight: 500, cursor: 'pointer',
-          }}>✂ تقسيم</button>
+          }}>✂</button>
         </div>
       </div>
 
-      <div style={{ textAlign: 'end', flexShrink: 0 }}>
-        <div style={{ fontSize: 11, color: COLORS.muted }}>المجموع</div>
-        <div style={{ fontSize: 20, fontWeight: 500, color: COLORS.success }}>{money(lineTotal)}</div>
+      <div style={{ textAlign: 'end', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 500, color: COLORS.success, whiteSpace: 'nowrap' }}>{money(lineTotal)}</div>
         <button onClick={onRemove} style={{
           background: 'transparent', border: 'none',
-          color: COLORS.danger, fontSize: 22, marginTop: 4, cursor: 'pointer',
+          color: COLORS.danger, fontSize: 18, cursor: 'pointer', padding: 4,
         }}>🗑</button>
       </div>
     </div>
