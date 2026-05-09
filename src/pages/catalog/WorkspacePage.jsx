@@ -391,7 +391,8 @@ export default function WorkspacePage() {
   const { settings } = useSettingsStore()
   const cur = settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
-  const { isKiosk, enable: enableKiosk, disable: disableKiosk } = useKioskStore()
+  const { isKiosk, enable: enableKiosk, disable: disableKiosk, checkPin } = useKioskStore()
+  const [pinModal, setPinModal] = useState(null) // 'set' | 'verify' | null
 
   // Kiosk-mode customers see only browse + cart. Vendor-only tabs are off.
   const VALID_TABS = isKiosk ? ['browse', 'cart'] : ['browse', 'cart', 'orders', 'customers']
@@ -439,23 +440,26 @@ export default function WorkspacePage() {
   const goCart = () => goTab('cart')
   const goBrowse = () => goTab('browse')
 
-  // Kiosk exit requires typing a confirmation phrase so a curious customer
-  // tapping "OK" on a confirm() can't escape.
-  const onExitKiosk = () => {
-    const ans = window.prompt('للخروج من وضع الزبون اكتب: بائع')
-    if (ans === null) return
-    if (ans.trim() === 'بائع') {
-      disableKiosk()
-      toast.success('تم الخروج من وضع الزبون')
-    } else {
-      toast.error('كلمة غير صحيحة')
+  // Kiosk: vendor sets a 4-digit PIN when enabling, must enter the same PIN
+  // to exit. PIN is held only for the duration of the kiosk session.
+  const onExitKiosk = () => setPinModal('verify')
+  const onEnableKiosk = () => setPinModal('set')
+
+  const handlePinSubmit = (pin) => {
+    if (pinModal === 'set') {
+      enableKiosk(pin)
+      if (tab === 'orders' || tab === 'customers') goBrowse()
+      toast.success('وضع الزبون مفعّل — يمكنك تسليم اللوحة للزبون')
+      setPinModal(null)
+    } else if (pinModal === 'verify') {
+      if (checkPin(pin)) {
+        disableKiosk()
+        toast.success('تم الخروج من وضع الزبون')
+        setPinModal(null)
+      } else {
+        toast.error('الرمز السري غير صحيح')
+      }
     }
-  }
-  const onEnableKiosk = () => {
-    if (!window.confirm('تفعيل وضع الزبون؟ سيتم إخفاء الإدارة والطلبات والزبائن.')) return
-    enableKiosk()
-    if (tab === 'orders' || tab === 'customers') goBrowse()
-    toast.success('وضع الزبون مفعّل — يمكنك تسليم اللوحة للزبون')
   }
 
   return (
@@ -523,6 +527,75 @@ export default function WorkspacePage() {
         {tab === 'cart'      && <CartTab onBrowse={goBrowse} />}
         {tab === 'orders'    && <OrdersTab onSwitchToCart={goCart} />}
         {tab === 'customers' && <CustomersTab cur={cur} onUseInCart={goCart} />}
+      </div>
+
+      {pinModal && (
+        <KioskPinModal
+          mode={pinModal}
+          onSubmit={handlePinSubmit}
+          onCancel={() => setPinModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Kiosk PIN entry modal ──────────────────────────────────────
+function KioskPinModal({ mode, onSubmit, onCancel }) {
+  const [pin, setPin] = useState('')
+  const isSet = mode === 'set'
+  const min = 4
+
+  const submit = () => {
+    if (pin.length < min) return
+    onSubmit(pin)
+    if (isSet) setPin('') // verify mode keeps PIN so user can see + retry
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden font-arabic" dir="rtl">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{isSet ? '👁' : '🔒'}</span>
+            <div>
+              <div className="font-bold text-slate-900">
+                {isSet ? 'تفعيل وضع الزبون' : 'الخروج من وضع الزبون'}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {isSet ? 'اختر رمزاً سرياً للخروج لاحقاً' : 'أدخل الرمز السري'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-5">
+          <input
+            type="password"
+            inputMode="numeric"
+            autoFocus
+            value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            onKeyDown={e => { if (e.key === 'Enter') submit() }}
+            placeholder="••••"
+            className="w-full text-center text-2xl tracking-[0.5em] font-bold py-4 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none bg-slate-50"
+          />
+          <div className="text-[11px] text-slate-400 text-center mt-2">
+            على الأقل {min} أرقام
+          </div>
+        </div>
+        <div className="px-5 pb-5 grid grid-cols-2 gap-2">
+          <button onClick={onCancel}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition">
+            إلغاء
+          </button>
+          <button onClick={submit} disabled={pin.length < min}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition">
+            {isSet ? 'تفعيل' : 'دخول'}
+          </button>
+        </div>
       </div>
     </div>
   )
