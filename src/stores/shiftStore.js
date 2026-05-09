@@ -17,6 +17,7 @@ export const useShiftStore = create(
           opening_cash: openingCash,
           opened_at:    new Date().toISOString(),
           status:       'open',
+          _local:       true, // marker so reconcile() knows this needs upgrading
         }
         try {
           const { data, error } = await supabase.from('cash_shifts').insert({
@@ -32,6 +33,23 @@ export const useShiftStore = create(
         // Fallback: local-only shift (works offline / before migration)
         set({ currentShift: localShift })
         return { data: localShift, error: null }
+      },
+
+      // If the current shift is a local-only fallback (DB write failed when
+      // it was opened), try once more to upgrade it to a real cash_shifts
+      // row. Call from POSPage on reconnect / on next render with internet.
+      reconcileLocalShift: async () => {
+        const cur = get().currentShift
+        if (!cur?._local) return
+        try {
+          const { data, error } = await supabase.from('cash_shifts').insert({
+            cashier_id:   cur.cashier_id,
+            opening_cash: cur.opening_cash,
+            opened_at:    cur.opened_at,
+            status:       'open',
+          }).select().single()
+          if (!error && data) set({ currentShift: data })
+        } catch (_) { /* still offline, leave it */ }
       },
 
       closeShift: async (closingCash, notes) => {

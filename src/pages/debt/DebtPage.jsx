@@ -11,7 +11,26 @@ export default function DebtPage() {
   const { profile }  = useAuthStore()
   const cur = settings?.currency || 'درهم'
 
-  const [tab, setTab] = useState('customers') // 'customers' | 'suppliers' | 'employees'
+  const VALID_DEBT_TABS = ['customers', 'suppliers', 'employees', 'expenses']
+  const [tab, setTab] = useState(() => {
+    const h = window.location.hash.replace('#', '')
+    return VALID_DEBT_TABS.includes(h) ? h : 'customers'
+  })
+
+  // Sync state ↔ URL hash so reload + back/forward preserve which tab the
+  // admin was on, instead of always reverting to ديون الزبائن.
+  const goTab = (id) => {
+    if (window.location.hash !== `#${id}`) window.location.hash = id
+    setTab(id)
+  }
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash.replace('#', '')
+      if (VALID_DEBT_TABS.includes(h)) setTab(h)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, []) // eslint-disable-line
 
   // ── CUSTOMER DEBT ──────────────────────────────────────────
   const [customers, setCustomers]       = useState([])
@@ -269,7 +288,7 @@ export default function DebtPage() {
             { id:'employees', label:'مستحقات الموظفين', badge: employeeDebts.length, color:'bg-purple-500' },
             { id:'expenses',  label:'مصاريف',         badge: 0,                    color:'bg-emerald-500' },
           ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => goTab(t.id)}
               className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 ${tab===t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}>
               {t.label}
               {t.badge > 0 && <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-black ${tab===t.id ? 'bg-white/30' : `${t.color} text-white`}`}>{t.badge}</span>}

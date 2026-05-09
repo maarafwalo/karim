@@ -4,6 +4,7 @@ import { ROLE_HOME } from '../lib/utils.js'
 import AppLayout          from '../layouts/AppLayout.jsx'
 import LoginPage          from '../pages/LoginPage.jsx'
 import UnauthorizedPage   from '../pages/UnauthorizedPage.jsx'
+import ErrorPage          from '../pages/ErrorPage.jsx'
 import POSPage            from '../pages/pos/POSPage.jsx'
 import CatalogPage        from '../pages/catalog/CatalogPage.jsx'
 import WorkspacePage      from '../pages/catalog/WorkspacePage.jsx'
@@ -48,13 +49,15 @@ function RoleRedirect() {
 }
 
 export const router = createBrowserRouter([
-  { path: '/login',        element: <LoginPage /> },
-  { path: '/unauthorized', element: <UnauthorizedPage /> },
-  { path: '/install',      element: <InstallPage /> },
+  { path: '/login',        element: <LoginPage />,        errorElement: <ErrorPage /> },
+  { path: '/unauthorized', element: <UnauthorizedPage />, errorElement: <ErrorPage /> },
+  { path: '/install',      element: <InstallPage />,      errorElement: <ErrorPage /> },
   {
     element: <RequireAuth />,
+    errorElement: <ErrorPage />,
     children: [{
       element: <AppLayout />,
+      errorElement: <ErrorPage />,
       children: [
         { index: true, element: <RoleRedirect /> },
         {
