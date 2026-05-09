@@ -146,35 +146,46 @@ export const useCartStore = create(
 
       // Load a vendor catalog_order into the POS cart for invoicing.
       // items: [{ product_id, product_name, unit_price, quantity, ... }]
-      // customer: { name, phone, address }
+      // customer: { id?, name, phone, address }
       // orderRef: optional string (e.g. 'ORD-...') stored in notes
-      loadFromOrder: (items, customer, orderRef) => set(() => ({
-        items: (items || []).map(it => ({
-          id:         it.product_id,
-          name:       it.product_name,
-          sell_price: Number(it.unit_price) || 0,
-          qty:        Math.max(1, Number(it.quantity) || 1),
-          stock:      null,
-          emoji:      '📦',
-          image_url:  null,
-          barcode:    null,
-          categories: null,
-          cat:        null,
-          isReturn:   false,
-        })),
-        customer: customer ? {
-          id:    null,
-          name:  customer.name || '',
-          phone: customer.phone || '',
-          address: customer.address || '',
-        } : null,
-        discountType:  'fixed',
-        discountValue: 0,
-        amountPaid:    0,
-        paymentMethod: 'cash',
-        notes:         orderRef ? `من طلب: ${orderRef}` : '',
-        returnMode:    false,
-      })),
+      // liveProducts: optional array from productsStore so we can rehydrate
+      //   image_url / barcode / stock / category for cleaner POS rendering and
+      //   stock validation. If omitted, items still load (stock unknown).
+      loadFromOrder: (items, customer, orderRef, liveProducts) => set(() => {
+        const productMap = new Map((liveProducts || []).map(p => [p.id, p]))
+        return {
+          items: (items || []).map(it => {
+            const live = productMap.get(it.product_id)
+            return {
+              id:         it.product_id,
+              name:       it.product_name,
+              sell_price: Number(it.unit_price) || 0,
+              qty:        Math.max(1, Number(it.quantity) || 1),
+              stock:      live?.stock ?? null,
+              emoji:      live?.emoji || '📦',
+              image_url:  live?.image_url || null,
+              barcode:    live?.barcode || null,
+              categories: live?.categories || null,
+              cat:        live?.cat || null,
+              isReturn:   false,
+            }
+          }),
+          customer: customer ? {
+            // Preserve the linked customer id when present so debt rolls under
+            // the right customer record; falls back to walk-in (id: null).
+            id:    customer.id ?? null,
+            name:  customer.name || '',
+            phone: customer.phone || '',
+            address: customer.address || '',
+          } : null,
+          discountType:  'fixed',
+          discountValue: 0,
+          amountPaid:    0,
+          paymentMethod: 'cash',
+          notes:         orderRef ? `من طلب: ${orderRef}` : '',
+          returnMode:    false,
+        }
+      }),
 
       getTotals: (tvaRate = 0) => {
         const { items, discountType, discountValue, amountPaid } = get()

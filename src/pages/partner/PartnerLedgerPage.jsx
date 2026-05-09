@@ -36,9 +36,12 @@ export default function PartnerLedgerPage() {
 
   useEffect(() => { load() }, [load])
 
-  const totalGoods = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0)
-  const totalPaid  = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const balance    = totalGoods - totalPaid
+  // Only count VERIFIED orders toward debt — pending ones can still be
+  // canceled by admin, so showing them inflates the partner's balance.
+  const totalGoods   = orders.filter(o => o.is_verified).reduce((s, o) => s + Number(o.total_amount || 0), 0)
+  const pendingGoods = orders.filter(o => !o.is_verified).reduce((s, o) => s + Number(o.total_amount || 0), 0)
+  const totalPaid    = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
+  const balance      = totalGoods - totalPaid
 
   // Combined timeline sorted by date
   const timeline = [

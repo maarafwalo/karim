@@ -1160,6 +1160,18 @@ export default function POSPage() {
       } catch (_) {}
     }
 
+    // If this invoice originated from a vendor catalog_order (we stamp the
+    // order_number into cart.notes as 'من طلب: ORD-…'), flip the source order
+    // to 'invoiced' now — only after the POS save succeeded.
+    const linkedOrderMatch = (cart.notes || '').match(/من طلب:\s*(ORD-\S+)/)
+    if (linkedOrderMatch) {
+      try {
+        await db.from('catalog_orders')
+          .update({ status: 'invoiced' })
+          .eq('order_number', linkedOrderMatch[1])
+      } catch (_) { /* admin can flip manually if this fails */ }
+    }
+
     // WhatsApp receipt
     const phone = cart.customer?.phone || ''
     if (phone) {

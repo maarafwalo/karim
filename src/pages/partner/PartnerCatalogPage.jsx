@@ -246,6 +246,9 @@ export default function PartnerCatalogPage() {
     return products.filter(p => {
       if (!p.is_active) return false
       if (p.is_hidden)  return false
+      // Restrict trusted partners to the main store only — sub-store SKUs
+      // belong to a specific branch and the partner can't physically take them.
+      if (p.store_id) return false
       const catMatch = activeCat === 'الكل' || p.categories?.name === activeCat || p.cat === activeCat
       const q        = searchQ.toLowerCase().trim()
       const qMatch   = !q || p.name.toLowerCase().includes(q) || (p.barcode || '').includes(q)

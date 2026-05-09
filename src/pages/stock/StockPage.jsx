@@ -21,14 +21,17 @@ function ProductModal({ product, categories, onSave, onClose }) {
     if (!file) return
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `${Date.now()}.${ext}`
+    // Unique filename so two simultaneous uploads can't clobber each other.
+    const uid = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2,8)}`
+    const fileName = `${uid}.${ext}`
     const { error } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('product-images').getPublicUrl(fileName)
       set('image_url', data.publicUrl)
       toast.success('✔ تم رفع الصورة')
     } else {
-      toast.error('فشل رفع الصورة — جرب رابط URL')
+      console.error('image upload failed:', error)
+      toast.error(`فشل رفع الصورة: ${error.message || 'جرب رابط URL'}`, { duration: 5000 })
     }
     setUploading(false)
   }
@@ -359,7 +362,19 @@ export default function StockPage() {
   })
 
   const handleStockChange = async (id, val) => {
-    const newStock = val === '' ? null : parseInt(val, 10)
+    if (val === '') {
+      const newStock = null
+      setSaving(s => ({ ...s, [id]: true }))
+      const error = await updateStock(id, newStock)
+      setSaving(s => ({ ...s, [id]: false }))
+      if (error) toast.error('فشل حفظ المخزون'); else toast.success('✔ ∞', { duration: 600 })
+      return
+    }
+    // Clamp: reject NaN, negatives, and decimals (parseInt('abc')=NaN, '0.5'→0).
+    const parsed = parseInt(val, 10)
+    if (Number.isNaN(parsed)) { toast.error('عدد غير صالح'); return }
+    const newStock = Math.max(0, parsed)
+    if (newStock !== parsed) toast(`صُحّح إلى ${newStock}`, { duration: 1500 })
     setSaving(s => ({ ...s, [id]: true }))
     const error = await updateStock(id, newStock)
     setSaving(s => ({ ...s, [id]: false }))
@@ -426,7 +441,10 @@ export default function StockPage() {
 
         {oos.length > 0 && (
           <div className="bg-danger-light border-t border-danger/20 px-3 py-1.5 text-xs text-danger font-bold">
-            ❌ نفد: {oos.map(p => p.name).join('، ').slice(0, 100)}{oos.join('').length > 100 ? '...' : ''}
+            {(() => {
+              const names = oos.map(p => p.name).join('، ')
+              return <>❌ نفد: {names.slice(0, 100)}{names.length > 100 ? '...' : ''}</>
+            })()}
           </div>
         )}
       </div>

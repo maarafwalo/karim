@@ -471,27 +471,50 @@ function PermissionsTab() {
 }
 
 // ── MAIN ADMIN PAGE ───────────────────────────────────────────
+const ADMIN_TABS = [
+  { id:'settings',     label:'⚙️ الإعدادات' },
+  { id:'users',        label:'👥 المستخدمون' },
+  { id:'permissions',  label:'🔐 الصلاحيات' },
+  { id:'stores',       label:'🏬 الفروع' },
+  { id:'stats',        label:'📊 الإحصائيات' },
+  { id:'vorders',      label:'📋 طلبات الباعة' },
+  { id:'accounting',   label:'💼 محاسبة' },
+  { id:'suppliers',    label:'🚚 موردون' },
+  { id:'reports',      label:'📈 تقارير' },
+  { id:'partner',      label:'🤝 حساب سعيد' },
+  { id:'import',       label:'📦 استيراد' },
+]
+const ADMIN_TAB_IDS = ADMIN_TABS.map(t => t.id)
+
 export default function AdminPage() {
-  const [tab, setTab] = useState('settings')
-  const TABS = [
-    { id:'settings',     label:'⚙️ الإعدادات' },
-    { id:'users',        label:'👥 المستخدمون' },
-    { id:'permissions',  label:'🔐 الصلاحيات' },
-    { id:'stores',       label:'🏬 الفروع' },
-    { id:'stats',        label:'📊 الإحصائيات' },
-    { id:'vorders',      label:'📋 طلبات الباعة' },
-    { id:'accounting',   label:'💼 محاسبة' },
-    { id:'suppliers',    label:'🚚 موردون' },
-    { id:'reports',      label:'📈 تقارير' },
-    { id:'partner',      label:'🤝 حساب سعيد' },
-    { id:'import',       label:'📦 استيراد' },
-  ]
+  const [tab, setTab] = useState(() => {
+    // Persist the active tab via URL hash so reload + browser back work.
+    const h = window.location.hash.replace('#', '')
+    return ADMIN_TAB_IDS.includes(h) ? h : 'settings'
+  })
+
+  // Keep state and URL hash in sync
+  const goTab = (id) => {
+    if (window.location.hash !== `#${id}`) window.location.hash = id
+    setTab(id)
+  }
+
+  // React to back/forward + deep links
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash.replace('#', '')
+      if (ADMIN_TAB_IDS.includes(h)) setTab(h)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl">
       {/* Tab bar */}
       <div className="flex gap-1 p-2 bg-white border-b border-gray-100 flex-shrink-0 overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+        {ADMIN_TABS.map(t => (
+          <button key={t.id} onClick={() => goTab(t.id)}
             className={`flex-shrink-0 text-sm font-bold px-3 py-2 rounded-xl transition-all whitespace-nowrap ${tab===t.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {t.label}
           </button>

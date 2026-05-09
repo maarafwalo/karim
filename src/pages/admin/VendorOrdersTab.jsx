@@ -84,6 +84,19 @@ export default function VendorOrdersTab() {
   }
 
   const sendToPos = async (order) => {
+    // Warn if the cashier already has an unfinished sale in the POS cart.
+    // Without this we silently wipe their work.
+    const { useCartStore } = await import('../../stores/cartStore.js')
+    const existing = useCartStore.getState().items
+    if (existing.length > 0) {
+      const ok = window.confirm(
+        `الـ POS فيه ${existing.length} منتج. تحب نحتفظ بيهم في الانتظار ونحمل هاد الطلب؟`
+      )
+      if (!ok) return
+      // Park the existing cart so it can be resumed later from POS.
+      useCartStore.getState().holdCart?.()
+    }
+
     setBusyId(order.id)
     const db = supabaseAdmin || supabase
     let orderItems = items[order.id]
@@ -96,15 +109,21 @@ export default function VendorOrdersTab() {
       toast.error('الطلب فارغ')
       return
     }
+    // Bring product metadata along so the POS cart shows images / categories /
+    // valid stock caps instead of bare 'name + price'.
+    const { useProductsStore } = await import('../../stores/productsStore.js')
+    const liveProducts = useProductsStore.getState().products
     loadFromOrder(orderItems, {
+      // Pass through the customer_id if the saved order has one — otherwise POS
+      // creates an unlinked walk-in invoice and the debt rolls under a phantom row.
+      id:      order.customer_id || null,
       name:    order.customer_name,
       phone:   order.customer_phone,
       address: order.customer_address,
-    }, order.order_number)
-    // Mark the source order so it's clear we already pushed it through POS
-    await db.from('catalog_orders')
-      .update({ status: 'invoiced' })
-      .eq('id', order.id)
+    }, order.order_number, liveProducts)
+    // NOTE: status only flips after the POS sale actually completes — we don't
+    // mark 'invoiced' here. If the cashier abandons the POS session this order
+    // stays open and the admin can retry.
     setBusyId(null)
     toast.success(`📋 تم تحميل ${orderItems.length} صنف في POS`)
     navigate('/pos')
