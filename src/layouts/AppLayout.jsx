@@ -6,6 +6,7 @@ import { useBagStore } from '../stores/bagStore.js'
 import { useCartStore } from '../stores/cartStore.js'
 import { useCameraStore, getGlobalStream } from '../stores/cameraStore.js'
 import { usePermissionsStore } from '../stores/permissionsStore.js'
+import { useKioskStore } from '../stores/kioskStore.js'
 import { useEffect, useRef, useState } from 'react'
 import { ROLE_LABELS } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
@@ -100,10 +101,19 @@ export default function AppLayout() {
   const { load: loadProducts, subscribeRealtime } = useProductsStore()
   const { active, autoStart, startCamera } = useCameraStore()
   const { canAccess } = usePermissionsStore()
+  const isKiosk   = useKioskStore(s => s.isKiosk)
   const navigate  = useNavigate()
   const location  = useLocation()
   const canvasRef = useRef(null)
   const [unverifiedCount, setUnverifiedCount] = useState(0)
+
+  // In kiosk mode, force any other route back to /workspace. Customer can't
+  // navigate to /admin, /pos, /stock etc. by typing a URL or hitting back.
+  useEffect(() => {
+    if (isKiosk && location.pathname !== '/workspace') {
+      navigate('/workspace', { replace: true })
+    }
+  }, [isKiosk, location.pathname])
 
   useEffect(() => { loadSettings(); loadProducts() }, [])
   useEffect(() => { const unsub = subscribeRealtime(); return unsub }, [])
@@ -169,7 +179,8 @@ export default function AppLayout() {
     <div className="flex flex-col h-screen overflow-hidden font-arabic" dir="rtl">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* ── HORIZONTAL HEADER ── */}
+      {/* ── HORIZONTAL HEADER (hidden in kiosk mode) ── */}
+      {!isKiosk && (
       <header className="flex items-center gap-2 px-3 h-[54px] bg-[#1a56db] text-white z-40 flex-shrink-0 shadow-lg">
         {/* Logo (click → home) */}
         <button onClick={() => navigate('/')} className="flex items-center gap-1.5 flex-shrink-0 ml-2 hover:opacity-80 transition active:scale-95">
@@ -207,6 +218,7 @@ export default function AppLayout() {
           </button>
         </div>
       </header>
+      )}
 
       {/* ── PAGE CONTENT ── */}
       <main className="flex-1 overflow-hidden">

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase.js'
 import { useBagStore } from './bagStore.js'
 import { useCartStore } from './cartStore.js'
+import { useKioskStore } from './kioskStore.js'
 
 export const useAuthStore = create((set, get) => ({
   user:    null,
@@ -63,6 +64,9 @@ export const useAuthStore = create((set, get) => ({
       useCartStore.getState().clear()
       // Also wipe heldCarts since clear() doesn't drop them.
       useCartStore.setState({ heldCarts: [] })
+      // Clear kiosk lock — otherwise the next user on this device gets stuck
+      // in the previous vendor's customer-mode and can't access admin pages.
+      useKioskStore.getState().disable()
       sessionStorage.removeItem('joud_bag_owner')
       sessionStorage.removeItem('joud_orders_dirty')
     } catch {}

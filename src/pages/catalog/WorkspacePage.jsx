@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
 import { useBagStore } from '../../stores/bagStore.js'
+import { useKioskStore } from '../../stores/kioskStore.js'
 import { fmt, fmtDate, buildWhatsApp } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
 
@@ -390,8 +391,10 @@ export default function WorkspacePage() {
   const { settings } = useSettingsStore()
   const cur = settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
+  const { isKiosk, enable: enableKiosk, disable: disableKiosk } = useKioskStore()
 
-  const VALID_TABS = ['browse', 'cart', 'orders', 'customers']
+  // Kiosk-mode customers see only browse + cart. Vendor-only tabs are off.
+  const VALID_TABS = isKiosk ? ['browse', 'cart'] : ['browse', 'cart', 'orders', 'customers']
   const [tab, setTab] = useState(() => {
     const hash = window.location.hash.replace('#', '')
     if (hash && VALID_TABS.includes(hash)) return hash
@@ -404,6 +407,14 @@ export default function WorkspacePage() {
     return fallback
   })
 
+  // If kiosk gets toggled on while on a vendor-only tab, bounce to browse.
+  useEffect(() => {
+    if (isKiosk && (tab === 'orders' || tab === 'customers')) {
+      window.location.hash = 'browse'
+      setTab('browse')
+    }
+  }, [isKiosk])
+
   useEffect(() => {
     const onHash = () => {
       const h = window.location.hash.replace('#', '')
@@ -411,13 +422,15 @@ export default function WorkspacePage() {
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  }, [isKiosk])
 
   const TABS = [
     { key: 'browse',    label: 'منتجات',  icon: '📦' },
     { key: 'cart',      label: 'السلة',   icon: '🧺',  badge: bagCount || null },
-    { key: 'orders',    label: 'طلبات',   icon: '📋' },
-    { key: 'customers', label: 'الزبائن', icon: '👤' },
+    ...(isKiosk ? [] : [
+      { key: 'orders',    label: 'طلبات',   icon: '📋' },
+      { key: 'customers', label: 'الزبائن', icon: '👤' },
+    ]),
   ]
 
   // Setting hash twice in a row would skip the second hashchange event, so
@@ -426,12 +439,31 @@ export default function WorkspacePage() {
   const goCart = () => goTab('cart')
   const goBrowse = () => goTab('browse')
 
+  // Kiosk exit requires typing a confirmation phrase so a curious customer
+  // tapping "OK" on a confirm() can't escape.
+  const onExitKiosk = () => {
+    const ans = window.prompt('للخروج من وضع الزبون اكتب: بائع')
+    if (ans === null) return
+    if (ans.trim() === 'بائع') {
+      disableKiosk()
+      toast.success('تم الخروج من وضع الزبون')
+    } else {
+      toast.error('كلمة غير صحيحة')
+    }
+  }
+  const onEnableKiosk = () => {
+    if (!window.confirm('تفعيل وضع الزبون؟ سيتم إخفاء الإدارة والطلبات والزبائن.')) return
+    enableKiosk()
+    if (tab === 'orders' || tab === 'customers') goBrowse()
+    toast.success('وضع الزبون مفعّل — يمكنك تسليم اللوحة للزبون')
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden font-arabic" dir="rtl"
       style={{ background: COLORS.pageBg }}>
       {/* Tab bar — colorful pill design, tablet-friendly tap targets */}
       <div className="flex-shrink-0 px-3 pt-3" style={{ background: COLORS.brand }}>
-        <div className="flex gap-2 overflow-x-auto pb-3">
+        <div className="flex gap-2 overflow-x-auto pb-3 items-center">
           {TABS.map(t => {
             const active = tab === t.key
             return (
@@ -462,6 +494,26 @@ export default function WorkspacePage() {
               </button>
             )
           })}
+
+          {/* Kiosk toggle — pushed to far end. Vendor enables it before
+              handing the tablet to a customer; exit requires typing 'بائع'. */}
+          <div className="flex-1" />
+          <button onClick={isKiosk ? onExitKiosk : onEnableKiosk}
+            className="relative flex items-center gap-1.5 rounded-2xl whitespace-nowrap transition flex-shrink-0 active:scale-95"
+            style={{
+              minHeight: 48,
+              padding: '10px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: isKiosk ? '#fef3c7' : 'rgba(255,255,255,0.12)',
+              color: isKiosk ? '#92400e' : 'white',
+              border: isKiosk ? '1.5px solid #fcd34d' : 'none',
+              cursor: 'pointer',
+            }}
+            title={isKiosk ? 'خروج من وضع الزبون' : 'تسليم اللوحة للزبون'}>
+            <span style={{ fontSize: 16 }}>{isKiosk ? '🔒' : '👁'}</span>
+            <span>{isKiosk ? 'وضع الزبون' : 'وضع الزبون'}</span>
+          </button>
         </div>
       </div>
 

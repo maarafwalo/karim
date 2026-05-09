@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useBagStore } from '../../stores/bagStore.js'
 import { useAuthStore } from '../../stores/authStore.js'
+import { useKioskStore } from '../../stores/kioskStore.js'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { generateOrderNumber } from '../../lib/utils.js'
 import toast from 'react-hot-toast'
@@ -11,6 +12,7 @@ import CustomerPickerModal from './CustomerPickerModal.jsx'
 
 export default function CartTab({ onBrowse }) {
   const { profile } = useAuthStore()
+  const isKiosk = useKioskStore(s => s.isKiosk)
 
   const items         = useBagStore(s => s.items)
   const customer      = useBagStore(s => s.customer)
@@ -278,68 +280,85 @@ export default function CartTab({ onBrowse }) {
           </div>
         </div>
 
-        {/* Customer slot */}
-        <div style={{
-          padding: '14px 18px', background: 'white',
-          borderTop: `1.5px solid ${COLORS.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {hasCustomer ? (
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: avColor.bg, color: avColor.fg,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 500, fontSize: 16,
-              }}>{initials(customer.name)}</div>
-            ) : (
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: '#e0e7ff', color: '#3730a3',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-              }}>👤</div>
-            )}
-            <div>
-              <div style={{ fontSize: 12, color: COLORS.muted }}>الزبون</div>
-              <div style={{ fontSize: 16, fontWeight: 500 }}>
-                {hasCustomer ? customer.name : 'لم يتم اختياره'}
-              </div>
-            </div>
+        {/* In kiosk mode the customer can browse + adjust the bag, but the
+            customer picker (which lists every customer + their debts) and the
+            save buttons are vendor-only. Show a hand-back-to-vendor hint. */}
+        {isKiosk ? (
+          <div style={{
+            padding: '16px 18px', background: '#eff6ff',
+            borderTop: `1.5px solid ${COLORS.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            color: '#1e40af', fontSize: 14, fontWeight: 500, textAlign: 'center',
+          }}>
+            <span style={{ fontSize: 18 }}>🤝</span>
+            <span>سلّم اللوحة للبائع لإتمام الطلب</span>
           </div>
-          <button onClick={() => setPickerOpen(true)} style={{
-            background: COLORS.brand, color: 'white', border: 'none',
-            padding: '12px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, cursor: 'pointer',
-          }}>
-            {hasCustomer ? 'تغيير' : '+ اختر زبون'}
-          </button>
-        </div>
-
-        {/* Final actions */}
-        <div style={{
-          padding: '14px 18px', background: 'white',
-          borderTop: `1.5px solid ${COLORS.border}`,
-          display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10,
-        }}>
-          <button onClick={() => sendOrder({ skipCustomer: true })} disabled={sending} style={{
-            background: 'white', color: '#475569', border: '1.5px solid #cbd5e1',
-            padding: 16, borderRadius: 14, fontSize: 14, fontWeight: 500,
-            cursor: sending ? 'wait' : 'pointer', opacity: sending ? 0.6 : 1,
-          }}>
-            حفظ بدون زبون
-          </button>
-          <button onClick={() => sendOrder({ skipCustomer: false })}
-            disabled={sending || !hasCustomer}
-            style={{
-              background: hasCustomer ? COLORS.success : '#94a3b8',
-              color: 'white', border: 'none', padding: 16, borderRadius: 14,
-              fontSize: 16, fontWeight: 500,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              cursor: hasCustomer && !sending ? 'pointer' : 'not-allowed',
-              opacity: sending ? 0.6 : 1,
+        ) : (
+          <>
+            {/* Customer slot */}
+            <div style={{
+              padding: '14px 18px', background: 'white',
+              borderTop: `1.5px solid ${COLORS.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-            {sending ? '...' : '✓ أتمّ الطلب'}
-          </button>
-        </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {hasCustomer ? (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    background: avColor.bg, color: avColor.fg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 500, fontSize: 16,
+                  }}>{initials(customer.name)}</div>
+                ) : (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    background: '#e0e7ff', color: '#3730a3',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                  }}>👤</div>
+                )}
+                <div>
+                  <div style={{ fontSize: 12, color: COLORS.muted }}>الزبون</div>
+                  <div style={{ fontSize: 16, fontWeight: 500 }}>
+                    {hasCustomer ? customer.name : 'لم يتم اختياره'}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setPickerOpen(true)} style={{
+                background: COLORS.brand, color: 'white', border: 'none',
+                padding: '12px 18px', borderRadius: 12, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+              }}>
+                {hasCustomer ? 'تغيير' : '+ اختر زبون'}
+              </button>
+            </div>
+
+            {/* Final actions */}
+            <div style={{
+              padding: '14px 18px', background: 'white',
+              borderTop: `1.5px solid ${COLORS.border}`,
+              display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10,
+            }}>
+              <button onClick={() => sendOrder({ skipCustomer: true })} disabled={sending} style={{
+                background: 'white', color: '#475569', border: '1.5px solid #cbd5e1',
+                padding: 16, borderRadius: 14, fontSize: 14, fontWeight: 500,
+                cursor: sending ? 'wait' : 'pointer', opacity: sending ? 0.6 : 1,
+              }}>
+                حفظ بدون زبون
+              </button>
+              <button onClick={() => sendOrder({ skipCustomer: false })}
+                disabled={sending || !hasCustomer}
+                style={{
+                  background: hasCustomer ? COLORS.success : '#94a3b8',
+                  color: 'white', border: 'none', padding: 16, borderRadius: 14,
+                  fontSize: 16, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  cursor: hasCustomer && !sending ? 'pointer' : 'not-allowed',
+                  opacity: sending ? 0.6 : 1,
+                }}>
+                {sending ? '...' : '✓ أتمّ الطلب'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {pickerOpen && (
