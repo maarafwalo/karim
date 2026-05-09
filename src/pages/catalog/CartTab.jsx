@@ -78,6 +78,11 @@ export default function CartTab({ onBrowse }) {
       )
       if (ordErr) throw ordErr
 
+      // Race guard: a realtime DELETE could have triggered reconcile between
+      // the length check at the top and this point, leaving liveItems empty.
+      // An empty insert leaves the parent order orphaned with 0 items.
+      if (!liveItems.length) throw new Error('السلة أصبحت فارغة — أُلغي الحفظ')
+
       const { error: itemsErr } = await withTimeout(
         db.from('catalog_order_items').insert(
           liveItems.map(b => {
@@ -144,7 +149,7 @@ export default function CartTab({ onBrowse }) {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 18 }}>✏️</span>
-              <span style={{ flex: 1 }}>وضع تعديل #{editingOrder.order_number} — أضف منتجات لإكمال التعديل</span>
+              <span style={{ flex: 1 }}>وضع تعديل #{(editingOrder.order_number || '').replace(/-tmp-\d+$/, '')} — أضف منتجات لإكمال التعديل</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {onBrowse && (
@@ -199,7 +204,7 @@ export default function CartTab({ onBrowse }) {
           color: '#92400e', fontSize: 14, fontWeight: 500,
         }}>
           <span style={{ fontSize: 18 }}>✏️</span>
-          <span style={{ flex: 1 }}>تعديل الطلب <b>#{editingOrder.order_number}</b></span>
+          <span style={{ flex: 1 }}>تعديل الطلب <b>#{(editingOrder.order_number || '').replace(/-tmp-\d+$/, '')}</b></span>
           <button
             onClick={() => { if (window.confirm('إلغاء التعديل وإفراغ السلة؟')) clearBag() }}
             style={{

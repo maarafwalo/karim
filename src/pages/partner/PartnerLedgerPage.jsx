@@ -62,7 +62,14 @@ export default function PartnerLedgerPage() {
       label:  `💰 دفعت — ${fmtDate(p.date || p.created_at)}`,
       notes:  p.notes,
     })),
-  ].sort((a, b) => new Date(b.date) - new Date(a.date))
+  ].sort((a, b) => {
+    const d = new Date(b.date) - new Date(a.date)
+    if (d !== 0) return d
+    // Same-second tie: orders apply BEFORE payments so running balance is
+    // computed in the right direction. Without this, render-order can flip.
+    if (a.type === b.type) return 0
+    return a.type === 'order' ? 1 : -1
+  })
 
   // Running balance (oldest → newest, then reverse for display)
   let running = 0

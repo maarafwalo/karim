@@ -1308,7 +1308,15 @@ export default function POSPage() {
     setTimeout(() => window.print(), 300)
   }
 
-  const { currentShift, openShift, closeShift, _hasHydrated } = useShiftStore()
+  const { currentShift, openShift, closeShift, reconcileLocalShift, _hasHydrated } = useShiftStore()
+
+  // If the active shift was opened in fallback mode (DB write failed), try
+  // once more to upgrade it to a real cash_shifts row when POS mounts and
+  // whenever the shift id changes. Keeps invoice.shift_id pointing at a real
+  // row instead of the local UUID.
+  useEffect(() => {
+    if (currentShift?._local) reconcileLocalShift?.()
+  }, [currentShift?.id])
   const { stores, activeStore, loadStores, setActiveStore } = useStoreContext()
   const [showStorePicker, setShowStorePicker] = useState(false)
   const [showSwitchUser, setShowSwitchUser] = useState(false)

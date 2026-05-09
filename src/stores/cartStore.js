@@ -45,9 +45,13 @@ export const useCartStore = create(
       // Scale item: always a new line, price = total from barcode, qty = 1
       addScaleItem: (product, totalPrice) => set(state => {
         if (state.returnMode) return state
+        // Two scans in the same ms collide on Date.now() alone — added random
+        // suffix so each scan stays a distinct line (otherwise React keys
+        // dedupe and the second scan looks lost).
+        const uniq = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
         const scaleItem = {
           ...product,
-          id:         product.id + '_scale_' + Date.now(), // unique per scan
+          id:         `${product.id}_scale_${uniq}`,
           sell_price: totalPrice,
           qty:        1,
           isReturn:   false,

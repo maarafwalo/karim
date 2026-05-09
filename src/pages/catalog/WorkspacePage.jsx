@@ -388,14 +388,20 @@ function CustomersTab({ cur, onUseInCart }) {
 // ── Main page with tabs ────────────────────────────────────────
 export default function WorkspacePage() {
   const { settings } = useSettingsStore()
-  const cur = settings?.currency_symbol || settings?.currency || 'درهم'
+  const cur = settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
 
   const VALID_TABS = ['browse', 'cart', 'orders', 'customers']
   const [tab, setTab] = useState(() => {
     const hash = window.location.hash.replace('#', '')
     if (hash && VALID_TABS.includes(hash)) return hash
-    return bagCount > 0 ? 'cart' : 'browse'
+    const fallback = bagCount > 0 ? 'cart' : 'browse'
+    // If the URL has a stale / invalid hash, clean it up so the bar matches
+    // the actual rendered tab.
+    if (hash && !VALID_TABS.includes(hash)) {
+      try { window.history.replaceState(null, '', '#' + fallback) } catch {}
+    }
+    return fallback
   })
 
   useEffect(() => {

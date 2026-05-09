@@ -29,18 +29,22 @@ function MiniCamera({ onClick }) {
   const videoRef   = useRef(null)
   const [minimized, setMinimized] = useState(false)
 
-  // Attach stream to video element whenever active changes
+  // Attach stream to video element whenever active OR the minimized toggle
+  // changes — otherwise expanding from minimized=true creates a fresh <video>
+  // node that never gets the srcObject reattached.
   useEffect(() => {
     const vid = videoRef.current
     if (!vid) return
     const stream = getGlobalStream()
-    if (active && stream) {
+    if (active && stream && !minimized) {
       vid.srcObject = stream
       vid.play().catch(() => {})
     } else {
       vid.srcObject = null
     }
-  }, [active])
+    // Release the binding on unmount to drop the MediaStream reference.
+    return () => { if (vid) vid.srcObject = null }
+  }, [active, minimized])
 
   if (!active) return null
 
