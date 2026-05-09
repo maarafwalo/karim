@@ -64,14 +64,40 @@ export const useBagStore = create(
         }),
       })),
 
-      // Drop bag items whose product_id no longer matches a live product.
-      // Called when productsStore loads / a realtime DELETE fires — keeps the
-      // saved order from referencing a deleted product (FK violation).
+      // Drop bag items whose product_id no longer matches a live product, AND
+      // refresh display-only fields (name / image / emoji / category) so that
+      // when admin edits a product on /editing the change shows up everywhere
+      // — including in-flight bags. Prices and stock are intentionally
+      // preserved as the original snapshot so the vendor's negotiated total
+      // doesn't shift mid-session.
       reconcile: (liveProducts) => set((s) => {
         if (!liveProducts?.length || !s.items.length) return s
-        const liveIds = new Set(liveProducts.map(p => p.id))
-        const next = s.items.filter(b => liveIds.has(b.product.id))
-        return next.length === s.items.length ? s : { items: next }
+        const liveById = new Map(liveProducts.map(p => [p.id, p]))
+        let changed = false
+        const next = []
+        for (const b of s.items) {
+          const live = liveById.get(b.product.id)
+          if (!live) { changed = true; continue }   // product gone — drop it
+          // Merge display fields from the live row, keep snapshotted shape.
+          const refreshed = {
+            ...b.product,
+            name:       live.name,
+            image_url:  live.image_url,
+            emoji:      live.emoji,
+            categories: live.categories,
+            cat:        live.cat,
+            barcode:    live.barcode,
+            // sell_price stays as the snapshot — vendors negotiate on what
+            // they saw, not what admin changed mid-flight.
+          }
+          if (refreshed.name !== b.product.name
+              || refreshed.image_url !== b.product.image_url
+              || refreshed.emoji !== b.product.emoji) {
+            changed = true
+          }
+          next.push({ ...b, product: refreshed })
+        }
+        return changed ? { items: next } : s
       }),
 
       clear: () => set({
