@@ -1,7 +1,17 @@
 export const STORE_PHONE = '212761568529'
 
+// Convert Arabic-Indic (٠-٩) and Eastern Arabic-Indic (۰-۹) digits to ASCII.
+// Useful when input.value comes from an Arabic IME or copy-paste.
+export function toLatinDigits(s) {
+  return String(s ?? '')
+    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660)
+    .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0)
+}
+
 export function fmt(num, decimals = 2) {
-  return Number(num || 0).toFixed(decimals)
+  // Coerce Arabic digits + ignore NaN so the UI never shows literal 'NaN'.
+  const n = Number(toLatinDigits(num))
+  return (Number.isFinite(n) ? n : 0).toFixed(decimals)
 }
 
 export function fmtDate(iso) {

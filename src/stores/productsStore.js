@@ -35,9 +35,11 @@ export const useProductsStore = create((set, get) => ({
     })
   },
 
-  // Realtime subscription: update stock + product changes live on any terminal
+  // Realtime subscription: update stock + product changes live on any terminal.
+  // Also listens for categories so newly added category names appear in
+  // filters without a manual reload.
   subscribeRealtime: () => {
-    const channel = supabase.channel('products_realtime')
+    const channel = supabase.channel('catalog_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async payload => {
         const { products } = get()
         if (payload.eventType === 'UPDATE') {
@@ -50,7 +52,19 @@ export const useProductsStore = create((set, get) => ({
         } else if (payload.eventType === 'DELETE') {
           set({ products: products.filter(p => p.id !== payload.old.id) })
         }
-      }).subscribe()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, payload => {
+        const { categories } = get()
+        if (payload.eventType === 'UPDATE') {
+          set({ categories: categories.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c) })
+        } else if (payload.eventType === 'INSERT') {
+          // Insert in sort_order if available, else push
+          set({ categories: [...categories, payload.new].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)) })
+        } else if (payload.eventType === 'DELETE') {
+          set({ categories: categories.filter(c => c.id !== payload.old.id) })
+        }
+      })
+      .subscribe()
     return () => supabase.removeChannel(channel)
   },
 

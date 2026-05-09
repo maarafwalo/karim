@@ -27,20 +27,41 @@ export default function ImportProductsTab() {
   const [importedCount, setImportedCount] = useState(0)
   const [activeCatId, setActiveCatId]     = useState(null) // null = all categories
 
+  // Supabase caps row counts by default; for projects with thousands of
+  // products we have to page through. Fetches PAGE_SIZE rows per request and
+  // stops when fewer than PAGE_SIZE come back.
+  const fetchAllPaged = async (client, table, columns, orderCol = 'name') => {
+    const PAGE_SIZE = 1000
+    const all = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await client
+        .from(table)
+        .select(columns)
+        .order(orderCol)
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) throw error
+      if (!data?.length) break
+      all.push(...data)
+      if (data.length < PAGE_SIZE) break
+    }
+    return all
+  }
+
   const load = async () => {
     setLoading(true)
     try {
-      const [{ data: liteProds }, { data: liteCs }, { data: appProds }, { data: appCs }] = await Promise.all([
-        liteClient.from('products').select('id,name,size,sell_price,cost_price,barcode,emoji,image_url,is_active,is_hidden,category_id,categories(name)').order('name'),
-        liteClient.from('categories').select('id,name').order('name'),
-        (supabaseAdmin || supabase).from('products').select('barcode,name'),
-        (supabaseAdmin || supabase).from('categories').select('id,name'),
+      const [liteProds, liteCs, appProds, appCs] = await Promise.all([
+        fetchAllPaged(liteClient, 'products',
+          'id,name,size,sell_price,cost_price,barcode,emoji,image_url,is_active,is_hidden,category_id,categories(name)'),
+        liteClient.from('categories').select('id,name').order('name').then(r => r.data || []),
+        fetchAllPaged(supabaseAdmin || supabase, 'products', 'barcode,name'),
+        (supabaseAdmin || supabase).from('categories').select('id,name').then(r => r.data || []),
       ])
-      setLiteProducts(liteProds || [])
-      setLiteCats(liteCs || [])
-      setAppCats(appCs || [])
-      const barcodes = new Set((appProds || []).map(p => (p.barcode || '').trim()).filter(Boolean))
-      const names    = new Set((appProds || []).map(p => (p.name    || '').trim().toLowerCase()))
+      setLiteProducts(liteProds)
+      setLiteCats(liteCs)
+      setAppCats(appCs)
+      const barcodes = new Set(appProds.map(p => (p.barcode || '').trim()).filter(Boolean))
+      const names    = new Set(appProds.map(p => (p.name    || '').trim().toLowerCase()))
       setExistingBarcodes(barcodes)
       setExistingNames(names)
     } catch (e) {

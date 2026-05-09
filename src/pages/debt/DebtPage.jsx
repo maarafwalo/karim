@@ -104,16 +104,36 @@ export default function DebtPage() {
   }
 
   const recordCustPayment = async () => {
-    const amount = parseFloat(payAmt)
-    if (!selCustomer || isNaN(amount) || amount <= 0) { toast.error('أدخل المبلغ'); return }
-    await supabase.from('debt_payments').insert({
+    const raw = parseFloat(payAmt)
+    if (!selCustomer || isNaN(raw) || raw <= 0) { toast.error('أدخل المبلغ'); return }
+    // Cap at outstanding so the recorded payment can't exceed the debt.
+    const balance = Number(selCustomer.balance) || 0
+    if (balance <= 0) { toast.error('لا يوجد دين على هذا الزبون'); return }
+    const amount = Math.min(raw, balance)
+    if (raw > balance) {
+      if (!window.confirm(`المبلغ أكبر من الدين (${fmt(balance)} ${cur}). نسجل ${fmt(amount)} فقط؟`)) return
+    }
+
+    // Insert the payment first; if that fails we don't touch the balance.
+    const { error: insErr } = await supabase.from('debt_payments').insert({
       customer_id: selCustomer.id,
       amount,
       notes: payNote || null,
       cashier_id: profile?.id,
     })
-    const newBalance = Math.max(0, (selCustomer.balance || 0) - amount)
-    await supabase.from('customers').update({ balance: newBalance }).eq('id', selCustomer.id)
+    if (insErr) { toast.error('فشل تسجيل الدفعة: ' + insErr.message); return }
+
+    const newBalance = Math.max(0, balance - amount)
+    const { error: updErr } = await supabase.from('customers')
+      .update({ balance: newBalance })
+      .eq('id', selCustomer.id)
+    if (updErr) {
+      // Payment is recorded but balance update failed — surface so admin
+      // can correct, instead of silently leaving them out of sync.
+      toast.error(`⚠️ الدفعة سُجّلت لكن الرصيد لم يتحدّث: ${updErr.message}`, { duration: 8000 })
+      return
+    }
+
     toast.success(`تم تسجيل دفعة ${fmt(amount)} ${cur}`)
     setPayAmt('')
     setPayNote('')
