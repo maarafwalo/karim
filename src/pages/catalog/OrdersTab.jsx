@@ -73,12 +73,16 @@ export default function OrdersTab({ onSwitchToCart }) {
     const db = supabaseAdmin || supabase
     const { data: items } = await db.from('catalog_order_items').select('*').eq('order_id', order.id)
     const productMap = new Map((products || []).map(p => [p.id, p]))
-    // Match "name (units/packSize)" suffix so we don't double-encode it on save
-    const partialRe = /\s*\((\d+)\/(\d+)\)\s*$/
+    // Match "name (units/packSize)" suffix — accept ASCII, Arabic-Indic, and
+    // Eastern Arabic-Indic digits. Normalize to ASCII before parsing.
+    const partialRe = /\s*\(([\d٠-٩۰-۹]+)\/([\d٠-٩۰-۹]+)\)\s*$/
+    const arDigit = (s) => s
+      .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660)
+      .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0)
     const newBag = (items || []).map(it => {
       const m = it.product_name?.match(partialRe)
       const cleanName = m ? it.product_name.replace(partialRe, '').trim() : it.product_name
-      const partial = m ? { units: Number(m[1]), packSize: Number(m[2]) } : null
+      const partial = m ? { units: Number(arDigit(m[1])), packSize: Number(arDigit(m[2])) } : null
       const product = productMap.get(it.product_id) || {
         id: it.product_id,
         name: cleanName,
@@ -242,59 +246,134 @@ function OrderCard({ order, onEdit, onDelete }) {
   const editable = order.status === 'new' && !order.stock_approved
   const customerName = order.customer_name || 'زبون عابر'
   const shortNum = (order.order_number || '').split('-').pop() || ''
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState(null)
+  const [loadingItems, setLoadingItems] = useState(false)
+
+  const toggle = async () => {
+    const next = !open
+    setOpen(next)
+    if (next && items === null) {
+      setLoadingItems(true)
+      const db = supabaseAdmin || supabase
+      const { data } = await db.from('catalog_order_items').select('*').eq('order_id', order.id)
+      setItems(data || [])
+      setLoadingItems(false)
+    }
+  }
 
   return (
     <div style={{
       background: 'white', border: `1.5px solid ${COLORS.border}`,
       borderRadius: 16, padding: 16, marginBottom: 12,
     }}>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'start', marginBottom: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: av.bg, color: av.fg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 500, fontSize: 16,
-          }}>{initials(customerName)}</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 500 }}>{customerName}</div>
-            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-              ⏰ {timeAgoArabic(order.created_at)}
-              {order.customer_phone && ` · 📞 ${order.customer_phone}`}
+      {/* Whole header row is the toggle */}
+      <button
+        onClick={toggle}
+        style={{
+          background: 'none', border: 'none', padding: 0, width: '100%',
+          textAlign: 'inherit', cursor: 'pointer', font: 'inherit',
+        }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'start', marginBottom: 12, gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: av.bg, color: av.fg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 500, fontSize: 16, flexShrink: 0,
+            }}>{initials(customerName)}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>{customerName}</div>
+              <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
+                ⏰ {timeAgoArabic(order.created_at)}
+                {order.customer_phone && ` · 📞 ${order.customer_phone}`}
+              </div>
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{
+              background: badge.bg, color: badge.fg, fontSize: 12,
+              padding: '6px 14px', borderRadius: 999, fontWeight: 500,
+            }}>
+              {badge.label}
+            </span>
+            <span style={{ color: COLORS.muted, fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+          </div>
         </div>
-        <span style={{
-          background: badge.bg, color: badge.fg, fontSize: 12,
-          padding: '6px 14px', borderRadius: 999, fontWeight: 500,
-        }}>
-          {badge.label}
-        </span>
-      </div>
 
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '12px 0', borderTop: '1.5px dashed #e2e8f0',
-      }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>رقم الطلب</div>
-          <div style={{
-            fontSize: 12, color: COLORS.muted, marginTop: 2,
-            fontFamily: 'monospace',
-          }}>#{shortNum}</div>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 0 0', borderTop: '1.5px dashed #e2e8f0',
+        }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>رقم الطلب</div>
+            <div style={{
+              fontSize: 12, color: COLORS.muted, marginTop: 2,
+              fontFamily: 'monospace',
+            }}>#{shortNum}</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 500, color: COLORS.success }}>
+            {money(order.total)} <span style={{ fontSize: 12, color: COLORS.muted }}>د</span>
+          </div>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 500, color: COLORS.success }}>
-          {money(order.total)} <span style={{ fontSize: 12, color: COLORS.muted }}>د</span>
+      </button>
+
+      {/* Expanded items list */}
+      {open && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1.5px solid ${COLORS.border}` }}>
+          {loadingItems ? (
+            <div style={{ textAlign: 'center', color: COLORS.muted, fontSize: 12, padding: 8 }}>
+              جاري التحميل...
+            </div>
+          ) : !items?.length ? (
+            <div style={{ textAlign: 'center', color: COLORS.muted, fontSize: 12, padding: 8 }}>
+              لا توجد أصناف
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {items.map(it => {
+                const isNeg = it.negotiated && it.original_price != null
+                  && Math.abs(Number(it.unit_price) - Number(it.original_price)) > 0.005
+                return (
+                  <div key={it.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: '#f8fafc', borderRadius: 10,
+                    padding: '8px 10px', fontSize: 13,
+                  }}>
+                    <span style={{ flex: 1, fontWeight: 500, color: '#334155' }}>{it.product_name}</span>
+                    <span style={{ color: COLORS.muted, fontSize: 12 }}>× {it.quantity}</span>
+                    {isNeg && (
+                      <span style={{ color: '#94a3b8', fontSize: 11, textDecoration: 'line-through' }}>
+                        {money(it.original_price)}
+                      </span>
+                    )}
+                    <span style={{
+                      fontWeight: 600,
+                      color: isNeg ? '#92400e' : '#334155',
+                      minWidth: 60, textAlign: 'left',
+                    }}>
+                      {money(it.total)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {order.customer_address && (
+            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 10 }}>
+              📍 {order.customer_address}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       <div style={{
         display: 'grid',
         gridTemplateColumns: editable ? '1fr 1fr' : '1fr',
-        gap: 8, marginTop: 8,
+        gap: 8, marginTop: 12,
       }}>
         {editable && (
           <button onClick={onEdit} style={{

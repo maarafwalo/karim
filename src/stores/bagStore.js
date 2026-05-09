@@ -82,7 +82,26 @@ export const useBagStore = create(
     }),
     {
       name: 'joud_bag',
+      // Bump this when the persisted shape changes incompatibly so old browsers
+      // don't blow up after a deploy.
+      version: 2,
       partialize: (s) => ({ items: s.items, customer: s.customer, editingOrder: s.editingOrder }),
+      migrate: (persisted, fromVersion) => {
+        if (!persisted) return persisted
+        // v0/v1 → v2: items lacked originalPrice. Backfill from product.sell_price.
+        if (fromVersion < 2 && Array.isArray(persisted.items)) {
+          persisted.items = persisted.items
+            // Drop entries that no longer match the expected nested shape.
+            .filter(it => it && it.product && typeof it.product.id !== 'undefined')
+            .map(it => ({
+              ...it,
+              originalPrice: typeof it.originalPrice === 'number'
+                ? it.originalPrice
+                : (it.product?.sell_price ?? it.negotiatedPrice ?? 0),
+            }))
+        }
+        return persisted
+      },
     }
   )
 )

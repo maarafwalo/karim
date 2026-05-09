@@ -80,4 +80,8 @@ export const itemPrice = (it) =>
   typeof it?.negotiatedPrice === 'number' ? it.negotiatedPrice : (it?.product?.sell_price ?? 0)
 export const itemOriginalPrice = (it) =>
   typeof it?.originalPrice === 'number' ? it.originalPrice : (it?.product?.sell_price ?? 0)
-export const itemSubtotal = (it) => itemPrice(it) * (it?.qty ?? 0)
+// Rounded to 2 decimals so the displayed line total matches what gets saved
+// to catalog_order_items.total. Without rounding, summing 33.333 three times
+// shows 99.99 in UI but stores 99.999 → 100.00 in DB (off-by-cent).
+export const itemSubtotal = (it) =>
+  Math.round(itemPrice(it) * (it?.qty ?? 0) * 100) / 100

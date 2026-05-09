@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo } from 'react'
 import { useBagStore } from '../../stores/bagStore.js'
 import { useProductsStore } from '../../stores/productsStore.js'
-import { COLORS, money, itemPrice } from './_workspaceHelpers.js'
+import { COLORS, money, itemSubtotal } from './_workspaceHelpers.js'
 
 export default function ProductsTab({ onOpenCart }) {
   const products    = useProductsStore((s) => s.products)
@@ -36,7 +36,7 @@ export default function ProductsTab({ onOpenCart }) {
   const addItem = useBagStore((s) => s.addItem)
   const decItem = useBagStore((s) => s.decItem)
 
-  const bagTotal = bagItems.reduce((sum, it) => sum + itemPrice(it) * (it.qty || 0), 0)
+  const bagTotal = bagItems.reduce((sum, it) => sum + itemSubtotal(it), 0)
   const bagCount = bagItems.reduce((s, it) => s + (it.qty || 0), 0)
   const inCartQty = (productId) =>
     bagItems.filter((it) => it.product?.id === productId).reduce((s, it) => s + (it.qty || 0), 0)

@@ -36,7 +36,12 @@ export default defineConfig({
             options: { cacheName: 'google-fonts-cache', expiration: { maxAgeSeconds: 60 * 60 * 24 * 365 } },
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            // Only cache Supabase REST GETs. Auth, realtime, storage, and any
+            // mutation (POST/PATCH/DELETE) must always hit the network — caching
+            // them returns stale auth tokens or replays a stale insert payload.
+            urlPattern: ({ url, request }) =>
+              /^https:\/\/.*\.supabase\.co\/rest\/v1\//i.test(url.href)
+              && request.method === 'GET',
             handler: 'NetworkFirst',
             options: { cacheName: 'supabase-cache', expiration: { maxAgeSeconds: 300 } },
           },
