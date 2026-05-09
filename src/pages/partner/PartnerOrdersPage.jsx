@@ -138,27 +138,62 @@ export default function PartnerOrdersPage() {
 
   const handleApprove = async (orderId) => {
     setApproving(orderId)
-    const { error } = await supabase
-      .from('catalog_orders')
-      .update({
-        stock_approved:    true,
-        stock_approved_by: profile?.id,
-        stock_approved_at: new Date().toISOString(),
-        status:            'approved',
-      })
-      .eq('id', orderId)
+    try {
+      // 1. Deduct stock for every line item BEFORE flipping the approval flag,
+      //    so a half-approved order isn't possible. (Until we have an RPC
+      //    that does this atomically, we do it client-side: fetch current
+      //    stock per product, write decremented value.)
+      const { data: orderItems, error: itemsErr } = await supabase
+        .from('catalog_order_items')
+        .select('product_id, quantity')
+        .eq('order_id', orderId)
+      if (itemsErr) throw itemsErr
 
-    if (error) {
-      toast.error('فشل التأكيد: ' + error.message)
-    } else {
-      toast.success('✅ تم تأكيد خروج البضاعة')
+      // Group by product_id so the same product across multiple line items
+      // (rare but possible after edits) is decremented once with the total.
+      const byProduct = new Map()
+      for (const it of orderItems || []) {
+        if (!it.product_id) continue
+        byProduct.set(it.product_id, (byProduct.get(it.product_id) || 0) + Number(it.quantity || 0))
+      }
+      if (byProduct.size > 0) {
+        const ids = [...byProduct.keys()]
+        const { data: liveStock } = await supabase
+          .from('products').select('id, stock').in('id', ids)
+        await Promise.all((liveStock || []).map(p =>
+          // stock=null means unlimited — leave it alone.
+          p.stock == null
+            ? null
+            : supabase.from('products').update({
+                stock: Math.max(0, (p.stock || 0) - byProduct.get(p.id))
+              }).eq('id', p.id)
+        ))
+      }
+
+      // 2. Now flip the approval flag.
+      const { error } = await supabase
+        .from('catalog_orders')
+        .update({
+          stock_approved:    true,
+          stock_approved_by: profile?.id,
+          stock_approved_at: new Date().toISOString(),
+          status:            'approved',
+        })
+        .eq('id', orderId)
+      if (error) throw error
+
+      toast.success('✅ تم تأكيد خروج البضاعة + خصم المخزون')
       setOrders(prev => prev.map(o =>
         o.id === orderId
           ? { ...o, stock_approved: true, stock_approved_at: new Date().toISOString(), status: 'approved' }
           : o
       ))
+    } catch (e) {
+      console.error('handleApprove failed:', e)
+      toast.error('فشل التأكيد: ' + (e.message || 'خطأ'))
+    } finally {
+      setApproving(null)
     }
-    setApproving(null)
   }
 
   const filtered = orders.filter(o => {

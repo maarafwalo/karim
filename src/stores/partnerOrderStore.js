@@ -43,6 +43,10 @@ export const usePartnerOrderStore = create((set, get) => ({
     get().items.reduce((s, i) => s + (Number(i.agreedPrice) || 0) * i.qty, 0),
 
   submit: async (profile) => {
+    // Guard against double-tap. The button-disabled state alone can race because
+    // the click handler runs before the next render flushes `submitting:true`.
+    if (get().submitting) return { error: 'جاري الإرسال...' }
+
     const { items } = get()
     if (!items.length) return { error: 'السلة فارغة' }
 

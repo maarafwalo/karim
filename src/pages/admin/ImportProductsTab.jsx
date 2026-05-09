@@ -115,8 +115,18 @@ export default function ImportProductsTab() {
     setImporting(true)
     setImportedCount(0)
 
-    // Build a category-name → app-category-id map
-    const appCatByName = new Map(appCats.map(c => [c.name.trim().toLowerCase(), c.id]))
+    // Build a category-name → app-category-id map. Detect duplicates so we
+    // don't silently pick whichever one happened to come last in the array.
+    const appCatByName = new Map()
+    const dupeNames = new Set()
+    for (const c of appCats) {
+      const key = c.name.trim().toLowerCase()
+      if (appCatByName.has(key)) dupeNames.add(c.name)
+      else appCatByName.set(key, c.id)
+    }
+    if (dupeNames.size) {
+      toast(`⚠️ أقسام مكررة: ${[...dupeNames].join('، ')} — قد تتوزع المنتجات عشوائياً`, { duration: 6000 })
+    }
 
     // Find selected products
     const toImport = liteProducts.filter(p => picked.has(p.id))

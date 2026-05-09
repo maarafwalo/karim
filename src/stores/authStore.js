@@ -6,6 +6,9 @@ export const useAuthStore = create((set, get) => ({
   user:    null,
   profile: null,
   loading: true,
+  // Hold the auth subscription so re-init (StrictMode dev / hot reload) doesn't
+  // stack multiple listeners that would each fetch the profile on every event.
+  _authSub: null,
 
   init: async () => {
     // Restore session from localStorage first — works across refreshes
@@ -13,14 +16,18 @@ export const useAuthStore = create((set, get) => ({
     if (session?.user) await get()._fetchProfile(session.user)
     set({ loading: false })
 
+    // Tear down any previous listener before registering a new one.
+    try { get()._authSub?.subscription?.unsubscribe?.() } catch {}
+
     // Then listen for future auth changes (login / logout / token refresh)
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         await get()._fetchProfile(session.user)
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, profile: null })
       }
     })
+    set({ _authSub: sub })
   },
 
   _fetchProfile: async (user) => {
