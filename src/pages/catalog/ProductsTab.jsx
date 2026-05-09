@@ -1,17 +1,36 @@
 // Products tab — adapted to the real bagStore + productsStore shapes.
-import React from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useBagStore } from '../../stores/bagStore.js'
 import { useProductsStore } from '../../stores/productsStore.js'
 import { COLORS, money, itemPrice } from './_workspaceHelpers.js'
 
 export default function ProductsTab({ onOpenCart }) {
-  const categories = useProductsStore((s) => s.categories)
-  const activeCat = useProductsStore((s) => s.activeCat)
+  const products    = useProductsStore((s) => s.products)
+  const categories  = useProductsStore((s) => s.categories)
+  const activeCat   = useProductsStore((s) => s.activeCat)
   const setActiveCat = useProductsStore((s) => s.setActiveCat)
-  const searchQ = useProductsStore((s) => s.searchQ)
-  const setSearchQ = useProductsStore((s) => s.setSearchQ)
-  const filterFn = useProductsStore((s) => s.filteredProducts)
-  const filtered = filterFn()
+  const searchQ     = useProductsStore((s) => s.searchQ)
+  const setSearchQ  = useProductsStore((s) => s.setSearchQ)
+
+  // Memoize the filtered list so 800+ products don't re-filter on every
+  // re-render (cart state changes propagate up here too).
+  const filtered = useMemo(() => {
+    const q = (searchQ || '').toLowerCase().trim()
+    return (products || []).filter(p => {
+      if (!p.is_active || p.is_hidden || p.store_id) return false
+      const catMatch = activeCat === 'الكل' || p.categories?.name === activeCat || p.cat === activeCat
+      if (!catMatch) return false
+      if (!q) return true
+      return p.name?.toLowerCase().includes(q)
+        || (p.barcode || '').includes(q)
+        || (p.cat || '').includes(q)
+        || (p.categories?.name || '').includes(q)
+    })
+  }, [products, activeCat, searchQ])
+
+  // Clear the global search filter when leaving the workspace so it doesn't
+  // leak into the POS or stock pages (productsStore.searchQ is shared).
+  useEffect(() => () => { setSearchQ('') }, [setSearchQ])
 
   const bagItems = useBagStore((s) => s.items)
   const addItem = useBagStore((s) => s.addItem)

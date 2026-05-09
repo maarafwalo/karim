@@ -139,21 +139,33 @@ export default function CartTab({ onBrowse }) {
         {editingOrder && (
           <div style={{
             background: '#fef3c7', border: '2px solid #fcd34d', borderRadius: 14,
-            padding: '10px 14px', marginBottom: 12,
-            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '12px 14px', marginBottom: 12,
             color: '#92400e', fontSize: 14, fontWeight: 500,
           }}>
-            <span style={{ fontSize: 18 }}>✏️</span>
-            <span style={{ flex: 1 }}>وضع تعديل #{editingOrder.order_number} — أضف منتجات لإكمال التعديل</span>
-            <button
-              onClick={() => clearBag()}
-              style={{
-                background: 'white', color: '#92400e',
-                border: '1px solid #fcd34d', borderRadius: 10,
-                padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              }}>
-              إلغاء
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 18 }}>✏️</span>
+              <span style={{ flex: 1 }}>وضع تعديل #{editingOrder.order_number} — أضف منتجات لإكمال التعديل</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {onBrowse && (
+                <button onClick={onBrowse} style={{
+                  background: 'white', color: '#92400e',
+                  border: '1px solid #fcd34d', borderRadius: 10,
+                  padding: '10px 12px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                }}>
+                  ← تصفح المنتجات
+                </button>
+              )}
+              <button
+                onClick={() => { if (window.confirm('إلغاء التعديل؟')) clearBag() }}
+                style={{
+                  background: '#fef2f2', color: COLORS.danger,
+                  border: '1px solid #fecaca', borderRadius: 10,
+                  padding: '10px 12px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                }}>
+                إلغاء التعديل
+              </button>
+            </div>
           </div>
         )}
         <div style={{
@@ -364,6 +376,8 @@ export default function CartTab({ onBrowse }) {
 function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit }) {
   const product = item.product
   const lineTotal = itemSubtotal(item)
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const showImage = product.image_url && !imgFailed
   return (
     <div style={{
       padding: '14px 18px', borderBottom: `1.5px solid ${COLORS.border}`,
@@ -374,8 +388,10 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 32, flexShrink: 0, overflow: 'hidden',
       }}>
-        {product.image_url ? (
+        {showImage ? (
           <img src={product.image_url} alt={product.name}
+            onError={() => setImgFailed(true)}
+            loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : (product.emoji || '📦')}
       </div>

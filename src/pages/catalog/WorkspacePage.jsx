@@ -21,20 +21,21 @@ function CustomerCard({ c, cur, expanded, onToggle, onChange, onDelete, onUseFor
   // Single source of truth for fetching the customer's history. Called both
   // from the expand effect AND right after recordPayment (so the new dفعة
   // shows up without needing to collapse + reopen the card).
-  const refreshHistory = async () => {
+  const refreshHistory = async (isCancelled = () => false) => {
     const [inv, pay] = await Promise.all([
       supabase.from('pos_invoices').select('order_number, total, payment_method, payment_label, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
       (supabaseAdmin || supabase).from('debt_payments').select('amount, created_at')
         .eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
     ])
+    if (isCancelled()) return
     setHistory({ invoices: inv.data || [], payments: pay.data || [], loaded: true })
   }
 
   useEffect(() => {
     if (!expanded) return
     let cancelled = false
-    refreshHistory().then(() => { if (cancelled) setHistory(h => h) })
+    refreshHistory(() => cancelled)
     return () => { cancelled = true }
   }, [expanded, c.id])
 

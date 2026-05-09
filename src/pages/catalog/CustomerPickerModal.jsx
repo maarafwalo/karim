@@ -89,6 +89,10 @@ export default function CustomerPickerModal({ onClose, onPick, orderTotal = 0 })
             <div style={{ flex: 1, position: 'relative' }}>
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>🔍</span>
               <input type="text" value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter picks the only match — common for "type a phone, hit return".
+                  if (e.key === 'Enter' && filtered.length === 1) onPick(filtered[0])
+                }}
                 placeholder="ابحث بالاسم أو الهاتف..."
                 style={{
                   width: '100%', padding: '12px 38px 12px 12px',

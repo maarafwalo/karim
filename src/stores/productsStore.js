@@ -35,15 +35,18 @@ export const useProductsStore = create((set, get) => ({
     })
   },
 
-  // Realtime subscription: update stock live on any terminal
+  // Realtime subscription: update stock + product changes live on any terminal
   subscribeRealtime: () => {
     const channel = supabase.channel('products_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async payload => {
         const { products } = get()
         if (payload.eventType === 'UPDATE') {
-          set({ products: products.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p) })
+          // Preserve the joined categories(name,emoji) shape that's not in payload.new
+          set({ products: products.map(p => p.id === payload.new.id ? { ...p, ...payload.new, categories: p.categories } : p) })
         } else if (payload.eventType === 'INSERT') {
-          set({ products: [...products, payload.new] })
+          // Refetch the full row WITH the joined category — payload.new doesn't include the join
+          const { data } = await supabase.from('products').select('*, categories(name,emoji)').eq('id', payload.new.id).single()
+          if (data) set({ products: [...products, data] })
         } else if (payload.eventType === 'DELETE') {
           set({ products: products.filter(p => p.id !== payload.old.id) })
         }

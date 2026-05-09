@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase.js'
+import { useBagStore } from './bagStore.js'
 
 export const useAuthStore = create((set, get) => ({
   user:    null,
@@ -46,6 +47,12 @@ export const useAuthStore = create((set, get) => ({
   },
 
   signOut: async () => {
+    // Drop persisted vendor state so the next user on this device starts clean.
+    try {
+      useBagStore.getState().clear()
+      sessionStorage.removeItem('joud_bag_owner')
+      sessionStorage.removeItem('joud_orders_dirty')
+    } catch {}
     await supabase.auth.signOut()
     set({ user: null, profile: null })
   },

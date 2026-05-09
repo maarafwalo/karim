@@ -90,6 +90,9 @@ export default function OrdersTab({ onSwitchToCart }) {
         product,
         qty: it.quantity,
         negotiatedPrice: it.unit_price,
+        // Preserve the original_price column so re-saving doesn't recompute
+        // negotiation against the live (possibly drifted) sell_price.
+        originalPrice: it.original_price ?? it.unit_price,
         ...(partial ? { partial } : {}),
       }
     })

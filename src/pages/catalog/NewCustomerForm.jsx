@@ -81,9 +81,15 @@ export default function NewCustomerForm({ onClose, onCreated }) {
           </Field>
 
           <Field label="📞 الهاتف">
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder="06XX-XXX-XXX"
-              style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }} />
+              style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }}
+            />
           </Field>
 
           <Field label="📍 العنوان" optional>
