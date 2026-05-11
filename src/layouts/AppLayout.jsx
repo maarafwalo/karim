@@ -115,6 +115,21 @@ export default function AppLayout() {
     }
   }, [isKiosk, location.pathname])
 
+  // Emergency unlock: visiting ?nokiosk force-clears the lock. Use this when
+  // the vendor forgets their PIN or a deploy leaves them stuck. We accept it
+  // unconditionally because anyone who can type a URL into THIS device can
+  // already access the login screen anyway.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.has('nokiosk')) {
+      useKioskStore.getState().disable()
+      // Strip the param so a refresh doesn't keep re-firing this.
+      const url = new URL(window.location.href)
+      url.searchParams.delete('nokiosk')
+      window.history.replaceState({}, '', url)
+    }
+  }, [location.search])
+
   useEffect(() => { loadSettings(); loadProducts() }, [])
   useEffect(() => { const unsub = subscribeRealtime(); return unsub }, [])
 
