@@ -73,6 +73,18 @@ export default function VendorOrdersTab() {
   }
   useEffect(() => { load() }, [])
 
+  // Realtime: pick up new vendor orders without the admin hitting refresh.
+  // Vendors and admins are usually on different tabs — without this, the
+  // admin doesn't see طلبات until they click ↻ which feels broken.
+  useEffect(() => {
+    const ch = supabase.channel('vendor_orders_realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'catalog_orders' },
+        () => { load() })
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [])
+
   const expandOne = async (id) => {
     if (expanded === id) { setExpanded(null); return }
     setExpanded(id)
