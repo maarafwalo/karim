@@ -18,8 +18,26 @@ export const useKioskStore = create(
       pin:     null,
       enable:  (pin) => set({ isKiosk: true, pin: String(pin) }),
       disable: () => set({ isKiosk: false, pin: null }),
-      checkPin: (input) => String(input).trim() === String(get().pin),
+      checkPin: (input) => {
+        const saved = get().pin
+        // Orphan lock from pre-PIN version: isKiosk=true but no pin saved.
+        // Accept any input so the vendor isn't permanently locked out after
+        // the upgrade. Once they disable + re-enable they'll get a real PIN.
+        if (!saved) return true
+        return String(input).trim() === String(saved)
+      },
     }),
-    { name: 'joud_kiosk' }
+    {
+      name: 'joud_kiosk',
+      version: 2,
+      // Old v0/v1 state had isKiosk but no pin field. After upgrade, any
+      // lingering kiosk lock would be inescapable. Drop it on hydrate.
+      migrate: (persisted) => {
+        if (persisted && persisted.isKiosk && !persisted.pin) {
+          return { ...persisted, isKiosk: false, pin: null }
+        }
+        return persisted
+      },
+    }
   )
 )
