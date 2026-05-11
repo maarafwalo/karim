@@ -29,15 +29,13 @@ export const useKioskStore = create(
     }),
     {
       name: 'joud_kiosk',
-      version: 2,
-      // Old v0/v1 state had isKiosk but no pin field. After upgrade, any
-      // lingering kiosk lock would be inescapable. Drop it on hydrate.
-      migrate: (persisted) => {
-        if (persisted && persisted.isKiosk && !persisted.pin) {
-          return { ...persisted, isKiosk: false, pin: null }
-        }
-        return persisted
-      },
+      version: 3,
+      // v3: force-unlock everyone exactly once. The vendor reports of being
+      // locked out across the PIN-flow churn justify a hard reset — kiosk
+      // is a UX feature, not a security boundary, so a one-time wipe is fine.
+      // After this lands, the new flow (PIN + "نسيت الرمز السري؟" recovery
+      // via login password) is reachable and dependable.
+      migrate: () => ({ isKiosk: false, pin: null }),
     }
   )
 )
