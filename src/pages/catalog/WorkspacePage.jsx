@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { useSettingsStore } from '../../stores/settingsStore.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import { useBagStore } from '../../stores/bagStore.js'
 import { useKioskStore } from '../../stores/kioskStore.js'
 import { fmt, fmtDate, buildWhatsApp } from '../../lib/utils.js'
@@ -392,6 +393,7 @@ export default function WorkspacePage() {
   const cur = settings?.currency || 'درهم'
   const bagCount = useBagStore(s => s.items.reduce((acc, b) => acc + b.qty, 0))
   const { isKiosk, enable: enableKiosk, disable: disableKiosk, checkPin } = useKioskStore()
+  const userEmail = useAuthStore(s => s.user?.email)
   const [pinModal, setPinModal] = useState(null) // 'set' | 'verify' | null
 
   // Kiosk-mode customers see only browse + cart. Vendor-only tabs are off.
@@ -532,7 +534,9 @@ export default function WorkspacePage() {
       {pinModal && (
         <KioskPinModal
           mode={pinModal}
+          email={userEmail}
           onSubmit={handlePinSubmit}
+          onForgot={() => { disableKiosk(); toast.success('تم الخروج من وضع الزبون'); setPinModal(null) }}
           onCancel={() => setPinModal(null)}
         />
       )}
@@ -541,8 +545,14 @@ export default function WorkspacePage() {
 }
 
 // ── Kiosk PIN entry modal ──────────────────────────────────────
-function KioskPinModal({ mode, onSubmit, onCancel }) {
+// In verify mode, offers a "نسيت الرمز السري؟" link that re-authenticates
+// against Supabase using the vendor's normal login password. This is the
+// non-technical recovery path — vendors don't need URL params or devtools.
+function KioskPinModal({ mode, email, onSubmit, onForgot, onCancel }) {
   const [pin, setPin] = useState('')
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [password, setPassword] = useState('')
+  const [working, setWorking] = useState(false)
   const isSet = mode === 'set'
   const min = 4
 
@@ -550,6 +560,18 @@ function KioskPinModal({ mode, onSubmit, onCancel }) {
     if (pin.length < min) return
     onSubmit(pin)
     if (isSet) setPin('') // verify mode keeps PIN so user can see + retry
+  }
+
+  const submitRecovery = async () => {
+    if (!password) return
+    if (!email) { toast.error('لا يمكن استعادة الرمز — أعد تسجيل الدخول'); return }
+    setWorking(true)
+    // Verify the vendor's current login password against Supabase. We don't
+    // care about the new session — just whether the password is right.
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    setWorking(false)
+    if (error) { toast.error('كلمة السر غير صحيحة'); return }
+    onForgot()
   }
 
   return (
@@ -563,39 +585,83 @@ function KioskPinModal({ mode, onSubmit, onCancel }) {
             <span className="text-2xl">{isSet ? '👁' : '🔒'}</span>
             <div>
               <div className="font-bold text-slate-900">
-                {isSet ? 'تفعيل وضع الزبون' : 'الخروج من وضع الزبون'}
+                {showRecovery ? 'استعادة الرمز' : isSet ? 'تفعيل وضع الزبون' : 'الخروج من وضع الزبون'}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                {isSet ? 'اختر رمزاً سرياً للخروج لاحقاً' : 'أدخل الرمز السري'}
+                {showRecovery
+                  ? 'أدخل كلمة سر حسابك'
+                  : isSet ? 'اختر رمزاً سرياً للخروج لاحقاً' : 'أدخل الرمز السري'}
               </div>
             </div>
           </div>
         </div>
-        <div className="p-5">
-          <input
-            type="password"
-            inputMode="numeric"
-            autoFocus
-            value={pin}
-            onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            onKeyDown={e => { if (e.key === 'Enter') submit() }}
-            placeholder="••••"
-            className="w-full text-center text-2xl tracking-[0.5em] font-bold py-4 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none bg-slate-50"
-          />
-          <div className="text-[11px] text-slate-400 text-center mt-2">
-            على الأقل {min} أرقام
-          </div>
-        </div>
-        <div className="px-5 pb-5 grid grid-cols-2 gap-2">
-          <button onClick={onCancel}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition">
-            إلغاء
-          </button>
-          <button onClick={submit} disabled={pin.length < min}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition">
-            {isSet ? 'تفعيل' : 'دخول'}
-          </button>
-        </div>
+
+        {!showRecovery ? (
+          <>
+            <div className="p-5">
+              <input
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                onKeyDown={e => { if (e.key === 'Enter') submit() }}
+                placeholder="••••"
+                className="w-full text-center text-2xl tracking-[0.5em] font-bold py-4 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none bg-slate-50"
+              />
+              <div className="text-[11px] text-slate-400 text-center mt-2">
+                على الأقل {min} أرقام
+              </div>
+              {!isSet && (
+                <button onClick={() => setShowRecovery(true)}
+                  className="block mx-auto mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-bold underline">
+                  نسيت الرمز السري؟
+                </button>
+              )}
+            </div>
+            <div className="px-5 pb-5 grid grid-cols-2 gap-2">
+              <button onClick={onCancel}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition">
+                إلغاء
+              </button>
+              <button onClick={submit} disabled={pin.length < min}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition">
+                {isSet ? 'تفعيل' : 'دخول'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="p-5">
+              {email && (
+                <div className="text-xs text-slate-500 mb-2 text-center ltr">{email}</div>
+              )}
+              <input
+                type="password"
+                autoFocus
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitRecovery() }}
+                placeholder="كلمة السر"
+                className="w-full text-lg py-3 px-4 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none bg-slate-50"
+                style={{ direction: 'ltr', textAlign: 'left' }}
+              />
+              <div className="text-[11px] text-slate-400 text-center mt-2">
+                نفس كلمة السر التي تستعملها لتسجيل الدخول
+              </div>
+            </div>
+            <div className="px-5 pb-5 grid grid-cols-2 gap-2">
+              <button onClick={() => { setShowRecovery(false); setPassword('') }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition">
+                ← رجوع
+              </button>
+              <button onClick={submitRecovery} disabled={!password || working}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition">
+                {working ? '...' : '✓ خروج'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
