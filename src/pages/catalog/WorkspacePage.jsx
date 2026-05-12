@@ -518,7 +518,7 @@ export default function WorkspacePage() {
             }}
             title={isKiosk ? 'خروج من وضع الزبون' : 'تسليم اللوحة للزبون'}>
             <span style={{ fontSize: 16 }}>{isKiosk ? '🔒' : '👁'}</span>
-            <span>{isKiosk ? 'وضع الزبون' : 'وضع الزبون'}</span>
+            <span>{isKiosk ? 'خروج' : 'وضع الزبون'}</span>
           </button>
         </div>
       </div>

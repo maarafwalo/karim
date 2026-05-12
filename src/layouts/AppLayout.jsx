@@ -236,8 +236,12 @@ export default function AppLayout() {
       )}
 
       {/* ── PAGE CONTENT ── */}
+      {/* In kiosk mode, suppress any non-/workspace destination at render
+          time. The useEffect above triggers the redirect, but without this
+          guard the customer sees one frame of /admin or /pos before the
+          navigate(). */}
       <main className="flex-1 overflow-hidden">
-        <Outlet />
+        {isKiosk && location.pathname !== '/workspace' ? null : <Outlet />}
       </main>
 
       {isAdmin && <MiniCamera onClick={() => navigate('/surveillance')} />}

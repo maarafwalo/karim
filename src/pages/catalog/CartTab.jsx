@@ -61,6 +61,10 @@ export default function CartTab({ onBrowse }) {
     ])
 
     const EPS = 0.005
+    // Track the inserted parent so we can clean it up if items-insert fails.
+    // Without this, a half-saved order shows up in the admin tab with the
+    // right total but zero items — looks legit, can't be cashed out.
+    let createdOrderId = null
 
     try {
       const tmpSuffix = liveEditing?.id ? `-tmp-${Date.now()}` : ''
@@ -79,6 +83,7 @@ export default function CartTab({ onBrowse }) {
         }).select().single()
       )
       if (ordErr) throw ordErr
+      createdOrderId = order.id
 
       // Race guard: a realtime DELETE could have triggered reconcile between
       // the length check at the top and this point, leaving liveItems empty.
@@ -126,6 +131,9 @@ export default function CartTab({ onBrowse }) {
         }
       }
 
+      // Past the items insert — clear the cleanup target so the catch block
+      // doesn't wipe a successfully-saved order if the rename step throws.
+      createdOrderId = null
       toast.success(liveEditing ? `✔ تم تحديث #${orderNum}` : `✔ تم حفظ #${orderNum}`)
       clearBag()
       // Tell OrdersTab a save just happened so it refetches on its next mount
@@ -135,6 +143,13 @@ export default function CartTab({ onBrowse }) {
     } catch (e) {
       console.error('sendOrder failed:', e)
       toast.error('فشل الحفظ: ' + (e.message || 'خطأ'))
+      // Orphan cleanup: if the parent insert succeeded but items failed,
+      // delete the empty order so the admin tab doesn't show a phantom row
+      // with a real total but no line items. Best-effort.
+      if (createdOrderId) {
+        try { await db.from('catalog_orders').delete().eq('id', createdOrderId) }
+        catch (cleanupErr) { console.warn('orphan cleanup failed:', cleanupErr) }
+      }
     } finally {
       setSending(false)
     }
@@ -465,9 +480,9 @@ function CartRow({ item, onInc, onDec, onRemove, onPriceUp, onPriceDown, onSplit
 
           <button onClick={onSplit} style={{
             background: '#ede9fe', color: '#5b21b6', border: '1.5px solid #ddd6fe',
-            padding: '6px 10px', borderRadius: 10, fontSize: 12,
-            fontWeight: 500, cursor: 'pointer',
-          }}>✂</button>
+            minWidth: 40, minHeight: 40, padding: '8px 12px',
+            borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+          }} title="تقسيم الباكية">✂</button>
         </div>
       </div>
 

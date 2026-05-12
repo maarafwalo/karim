@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, supabaseAdmin } from '../../lib/supabase.js'
 import { useCartStore } from '../../stores/cartStore.js'
@@ -28,8 +28,12 @@ export default function VendorOrdersTab() {
   const [busyId, setBusyId]       = useState(null)
 
   const [loadError, setLoadError] = useState(null)
+  // Monotonic request id — drop responses that started before the latest
+  // request so a slow earlier load can't overwrite fresh data.
+  const loadSeq = useRef(0)
 
   const load = async () => {
+    const myId = ++loadSeq.current
     setLoading(true)
     setLoadError(null)
     const db = supabaseAdmin || supabase
@@ -45,6 +49,7 @@ export default function VendorOrdersTab() {
           .order('created_at', { ascending: false })
           .limit(200)
       )
+      if (myId !== loadSeq.current) return  // a newer load won the race
       if (error) throw error
       setOrders(ords || [])
 
@@ -55,11 +60,13 @@ export default function VendorOrdersTab() {
           .from('profiles')
           .select('id, full_name')
           .in('id', vendorIds)
+        if (myId !== loadSeq.current) return
         const map = {}
         ;(profs || []).forEach(p => { map[p.id] = p.full_name || '—' })
         setVendors(map)
       }
     } catch (e) {
+      if (myId !== loadSeq.current) return
       console.error('VendorOrdersTab load failed:', e)
       setLoadError(
         e.message === 'timeout'
@@ -68,21 +75,31 @@ export default function VendorOrdersTab() {
       )
       setOrders([])
     } finally {
-      setLoading(false)
+      if (myId === loadSeq.current) setLoading(false)
     }
   }
   useEffect(() => { load() }, [])
 
   // Realtime: pick up new vendor orders without the admin hitting refresh.
-  // Vendors and admins are usually on different tabs — without this, the
-  // admin doesn't see طلبات until they click ↻ which feels broken.
+  // Debounced to 400ms so a burst of vendor activity (5 vendors saving at
+  // once, or our own update of an order triggering an echo) collapses into
+  // one refetch instead of N. Also guards against older responses arriving
+  // after newer ones via an in-flight token.
   useEffect(() => {
+    let timer = null
+    const debouncedLoad = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { timer = null; load() }, 400)
+    }
     const ch = supabase.channel('vendor_orders_realtime')
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'catalog_orders' },
-        () => { load() })
+        debouncedLoad)
       .subscribe()
-    return () => supabase.removeChannel(ch)
+    return () => {
+      if (timer) clearTimeout(timer)
+      supabase.removeChannel(ch)
+    }
   }, [])
 
   const expandOne = async (id) => {

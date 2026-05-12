@@ -16,14 +16,22 @@ export const useKioskStore = create(
     (set, get) => ({
       isKiosk: false,
       pin:     null,
-      enable:  (pin) => set({ isKiosk: true, pin: String(pin) }),
+      // Refuse short/empty PINs so a malformed call can't leave the lock
+      // in an "any input unlocks" state (defense in depth — the modal also
+      // enforces this, but the store is the source of truth).
+      enable:  (pin) => {
+        const p = String(pin || '').trim()
+        if (p.length < 4) return false
+        set({ isKiosk: true, pin: p })
+        return true
+      },
       disable: () => set({ isKiosk: false, pin: null }),
       checkPin: (input) => {
         const saved = get().pin
-        // Orphan lock from pre-PIN version: isKiosk=true but no pin saved.
-        // Accept any input so the vendor isn't permanently locked out after
-        // the upgrade. Once they disable + re-enable they'll get a real PIN.
-        if (!saved) return true
+        // No PIN saved = no valid input. Vendors stuck here use the
+        // "نسيت الرمز السري؟" recovery flow (Supabase login password)
+        // instead of an implicit any-input bypass.
+        if (!saved) return false
         return String(input).trim() === String(saved)
       },
     }),
