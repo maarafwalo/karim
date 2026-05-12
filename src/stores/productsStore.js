@@ -50,9 +50,17 @@ export const useProductsStore = create((set, get) => ({
           // Preserve the joined categories(name,emoji) shape that's not in payload.new
           set({ products: products.map(p => p.id === payload.new.id ? { ...p, ...payload.new, categories: p.categories } : p) })
         } else if (payload.eventType === 'INSERT') {
+          // Skip if we already have this product locally — createProduct
+          // does an optimistic add, so the realtime echo would dupe it.
+          if (products.some(p => p.id === payload.new.id)) return
           // Refetch the full row WITH the joined category — payload.new doesn't include the join
           const { data } = await supabase.from('products').select('*, categories(name,emoji)').eq('id', payload.new.id).single()
-          if (data) set({ products: [...products, data] })
+          if (data) {
+            // Re-check in case createProduct landed between the early-return and this point.
+            const cur = get().products
+            if (cur.some(p => p.id === data.id)) return
+            set({ products: [...cur, data] })
+          }
         } else if (payload.eventType === 'DELETE') {
           set({ products: products.filter(p => p.id !== payload.old.id) })
         }
@@ -106,9 +114,21 @@ export const useProductsStore = create((set, get) => ({
   // Full product CRUD — uses admin client when available so writes work
   // even if RLS isn't fully configured yet.
   createProduct: async (product) => {
-    const { data, error } = await writeClient().from('products').insert(product).select().single()
-    if (!error) set(state => ({ products: [...state.products, data] }))
-    return { data, error }
+    // Re-fetch with the categories join so the new row matches the shape
+    // of every other product in the store (avoids blank-category display).
+    const { data: inserted, error } = await writeClient()
+      .from('products').insert(product).select('*, categories(name,emoji)').single()
+    if (error) return { data: null, error }
+    // Idempotent add — if realtime already echoed, replace; otherwise append.
+    set(state => {
+      const exists = state.products.some(p => p.id === inserted.id)
+      return {
+        products: exists
+          ? state.products.map(p => p.id === inserted.id ? inserted : p)
+          : [...state.products, inserted],
+      }
+    })
+    return { data: inserted, error: null }
   },
 
   updateProduct: async (id, changes) => {

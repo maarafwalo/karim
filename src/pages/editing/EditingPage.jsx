@@ -7,32 +7,51 @@ import toast from 'react-hot-toast'
 
 // ── Product Form Modal ───────────────────────────────────────
 function ProductModal({ product, categories, stores, onSave, onClose }) {
-  const [form, setForm] = useState(product || {
-    name:'', cat:'', size:'', sell_price:'', cost_price:'',
-    barcode:'', emoji:'📦', image_url:'', stock:'', is_active: true, is_hidden: false,
-    store_id: null,
-  })
+  // When editing an existing product, fall back to the joined category name
+  // if the legacy `cat` string isn't set — otherwise the select shows blank.
+  const initialCat = product
+    ? (product.cat || product.categories?.name || '')
+    : ''
+  const [form, setForm] = useState(product
+    ? { ...product, cat: initialCat }
+    : {
+        name:'', cat:'', size:'', sell_price:'', cost_price:'',
+        barcode:'', emoji:'📦', image_url:'', stock:'', is_active: true, is_hidden: false,
+        store_id: null,
+      }
+  )
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name || !form.sell_price) { toast.error('الاسم والسعر مطلوبان'); return }
+    const name = form.name?.trim()
+    const sellNum = parseFloat(form.sell_price)
+    if (!name) { toast.error('الاسم مطلوب'); return }
+    if (!Number.isFinite(sellNum) || sellNum < 0) { toast.error('سعر البيع غير صالح'); return }
     const cat = categories.find(c => c.name === form.cat)
-    await onSave({
-      name:        form.name.trim(),
+    const costNum = parseFloat(form.cost_price)
+    const stockNum = (form.stock === '' || form.stock == null) ? null : parseInt(form.stock, 10)
+    const ok = await onSave({
+      name,
       size:        form.size || '',
-      sell_price:  parseFloat(form.sell_price),
-      cost_price:  parseFloat(form.cost_price) || 0,
-      barcode:     form.barcode || null,
+      sell_price:  sellNum,
+      cost_price:  Number.isFinite(costNum) ? costNum : 0,
+      barcode:     form.barcode?.trim() || null,
       emoji:       form.emoji || '📦',
       image_url:   form.image_url || null,
-      stock:       form.stock !== '' && form.stock !== null ? parseInt(form.stock) : null,
+      stock:       Number.isFinite(stockNum) ? Math.max(0, stockNum) : null,
+      // Send BOTH cat (legacy column used by some filters) and category_id
+      // (FK used by the categories join) so the new product is visible in
+      // every consumer regardless of which column they read.
+      cat:         form.cat || null,
       category_id: cat?.id || null,
       is_active:   form.is_active,
       is_hidden:   form.is_hidden,
       store_id:    form.store_id || null,
     })
-    onClose()
+    // Only close on success — keep the modal open on failure so the user
+    // can read the error toast and fix the input without retyping.
+    if (ok !== false) onClose()
   }
 
   return (
@@ -128,13 +147,18 @@ export default function EditingPage() {
     return qm && cm && sm
   })
 
+  // Returns `false` on failure so the modal can stay open. Error message
+  // is included verbatim — RLS denial, duplicate barcode, etc. are usually
+  // the real cause and a vendor needs to see them.
   const handleSave = async (data) => {
     if (editProd && editProd !== 'new') {
       const { error } = await updateProduct(editProd.id, data)
-      if (error) toast.error('فشل التعديل'); else toast.success('✔ تم حفظ التعديل')
+      if (error) { toast.error('فشل التعديل: ' + (error.message || 'خطأ'), { duration: 6000 }); return false }
+      toast.success('✔ تم حفظ التعديل')
     } else {
       const { error } = await createProduct(data)
-      if (error) toast.error('فشل الإضافة'); else toast.success('✔ تمت الإضافة')
+      if (error) { toast.error('فشل الإضافة: ' + (error.message || 'خطأ'), { duration: 6000 }); return false }
+      toast.success('✔ تمت الإضافة')
     }
   }
 

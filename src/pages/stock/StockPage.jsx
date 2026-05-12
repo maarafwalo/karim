@@ -7,11 +7,19 @@ import toast from 'react-hot-toast'
 
 // ── Product Form Modal ────────────────────────────────────────
 function ProductModal({ product, categories, onSave, onClose }) {
-  const [form, setForm] = useState(product || {
-    name: '', cat: '', sell_price: '', cost_price: '', stock: '',
-    barcode: '', size: '', emoji: '📦', image_url: '', is_active: true,
-    is_hidden: false, min_stock: '', unit: '', notes: '', discount_price: '',
-  })
+  // Pull category name from the FK join when editing — otherwise the select
+  // shows '— بدون قسم —' even when the product has a category.
+  const initialCat = product
+    ? (product.cat || product.categories?.name || '')
+    : ''
+  const [form, setForm] = useState(product
+    ? { ...product, cat: initialCat }
+    : {
+        name: '', cat: '', sell_price: '', cost_price: '', stock: '',
+        barcode: '', size: '', emoji: '📦', image_url: '', is_active: true,
+        is_hidden: false, min_stock: '', unit: '', notes: '', discount_price: '',
+      }
+  )
   const [advanced, setAdvanced] = useState(!!product)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
@@ -43,28 +51,34 @@ function ProductModal({ product, categories, onSave, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name || !form.sell_price) { toast.error('الاسم والسعر مطلوبان'); return }
+    const name = form.name?.trim()
+    const sellNum = parseFloat(form.sell_price)
+    if (!name) { toast.error('الاسم مطلوب'); return }
+    if (!Number.isFinite(sellNum) || sellNum < 0) { toast.error('سعر البيع غير صالح'); return }
     const cat = categories.find(c => c.name === form.cat)
-    await onSave({
-      name:        form.name.trim(),
-      sell_price:  parseFloat(form.sell_price),
-      cost_price:  parseFloat(form.cost_price) || 0,
-      stock:       form.stock !== '' && form.stock !== null ? parseInt(form.stock) : null,
+    const costNum = parseFloat(form.cost_price)
+    const stockNum = (form.stock === '' || form.stock == null) ? null : parseInt(form.stock, 10)
+    const ok = await onSave({
+      name,
+      sell_price:  sellNum,
+      cost_price:  Number.isFinite(costNum) ? costNum : 0,
+      stock:       Number.isFinite(stockNum) ? Math.max(0, stockNum) : null,
+      cat:         form.cat || null,
       category_id: cat?.id || null,
       is_active:   form.is_active ?? true,
       ...(advanced && {
-        barcode:        form.barcode || null,
+        barcode:        form.barcode?.trim() || null,
         size:           form.size || '',
         emoji:          form.emoji || '📦',
         image_url:      form.image_url || null,
         is_hidden:      form.is_hidden || false,
-        min_stock:      form.min_stock !== '' ? parseInt(form.min_stock) : null,
+        min_stock:      form.min_stock !== '' ? parseInt(form.min_stock, 10) : null,
         unit:           form.unit || null,
         notes:          form.notes || null,
         discount_price: form.discount_price !== '' ? parseFloat(form.discount_price) : null,
       }),
     })
-    onClose()
+    if (ok !== false) onClose()
   }
 
   return (
@@ -387,10 +401,12 @@ export default function StockPage() {
   const handleSave = async (data) => {
     if (editProd && editProd !== 'new') {
       const { error } = await updateProduct(editProd.id, data)
-      if (error) toast.error('فشل التعديل'); else toast.success('✔ تم حفظ التعديل')
+      if (error) { toast.error('فشل التعديل: ' + (error.message || 'خطأ'), { duration: 6000 }); return false }
+      toast.success('✔ تم حفظ التعديل')
     } else {
       const { error } = await createProduct(data)
-      if (error) toast.error('فشل الإضافة'); else toast.success('✔ تمت الإضافة')
+      if (error) { toast.error('فشل الإضافة: ' + (error.message || 'خطأ'), { duration: 6000 }); return false }
+      toast.success('✔ تمت الإضافة')
     }
   }
 
