@@ -378,18 +378,24 @@ function PaymentModal({ open, onClose, totals, currency, onConfirm, onPrint }) {
 }
 
 // ── Print Invoice ──────────────────────────────────────────────
-function PrintView({ invoice, settings }) {
+function PrintView({ invoice, settings, cashierName }) {
   if (!invoice) return null
   const cur = settings?.currency || 'درهم'
+  // Accept both new-invoice (isReturn) and reprint (is_return) item shapes —
+  // reprintInvoice() forwards raw DB rows without re-mapping.
+  const itemIsReturn = (it) => it.isReturn ?? it.is_return ?? false
+  const isRefund = (invoice.total || 0) < 0
   return (
     <div id="print-area" className="hidden print:block font-arabic" dir="rtl" style={{ maxWidth: 302, margin: '0 auto' }}>
       <div className="text-center mb-3">
-        <p className="font-black text-lg">{settings?.store_name || 'asswa9'}</p>
-        <p className="text-xs">{settings?.phone}</p>
+        <p className="font-black text-lg">{settings?.store_name || 'متجر'}</p>
+        {settings?.phone && <p className="text-xs">{settings.phone}</p>}
         <p className="text-xs">{fmtDate(invoice.created_at)}</p>
-        <p className="text-xs font-bold">فاتورة #{invoice.order_number}</p>
+        <p className="text-xs font-bold">
+          {isRefund ? `إرجاع #${invoice.order_number}` : `فاتورة #${invoice.order_number}`}
+        </p>
         {invoice.customer_name && <p className="text-xs">الزبون: {invoice.customer_name}</p>}
-        <p className="text-xs">الكاشير: {settings?.cashier_name || '—'}</p>
+        {cashierName && <p className="text-xs">الكاشير: {cashierName}</p>}
       </div>
       <table className="w-full text-xs mb-3">
         <thead><tr className="border-b border-black">
@@ -400,7 +406,7 @@ function PrintView({ invoice, settings }) {
         <tbody>
           {invoice.items?.map((item, i) => (
             <tr key={i} className="border-b border-dashed border-gray-300">
-              <td className="py-0.5 text-right">{item.isReturn && '↩ '}{item.product_name}</td>
+              <td className="py-0.5 text-right">{itemIsReturn(item) && '↩ '}{item.product_name}</td>
               <td className="text-center">{item.quantity}</td>
               <td className="text-left">{fmt(item.total)}</td>
             </tr>
@@ -411,11 +417,17 @@ function PrintView({ invoice, settings }) {
         {invoice.discount_amt > 0 && <div className="flex justify-between"><span>الخصم</span><span>−{fmt(invoice.discount_amt)}</span></div>}
         {invoice.tva_amt > 0 && <div className="flex justify-between"><span>TVA {invoice.tva_rate}%</span><span>{fmt(invoice.tva_amt)}</span></div>}
         <div className="flex justify-between font-black text-base border-t border-black pt-1 mt-1">
-          <span>المجموع</span><span>{fmt(invoice.total)} {cur}</span>
+          <span>{isRefund ? 'مبلغ الإرجاع' : 'المجموع'}</span>
+          <span>{fmt(Math.abs(invoice.total))} {cur}</span>
         </div>
         <div className="flex justify-between"><span>طريقة الدفع</span><span>{invoice.payment_label}</span></div>
         {invoice.amount_paid > 0 && <div className="flex justify-between"><span>المدفوع</span><span>{fmt(invoice.amount_paid)}</span></div>}
-        {invoice.change_given > 0 && <div className="flex justify-between"><span>الباقي</span><span>{fmt(invoice.change_given)}</span></div>}
+        {invoice.change_given > 0 && (
+          <div className="flex justify-between">
+            <span>{isRefund ? 'المُسترد' : 'الباقي'}</span>
+            <span>{fmt(invoice.change_given)}</span>
+          </div>
+        )}
       </div>
       {invoice.notes && <p className="text-xs mt-2 border-t pt-1">ملاحظات: {invoice.notes}</p>}
       <p className="text-center text-xs mt-3 opacity-60">شكراً لتسوقكم معنا 🙏</p>
@@ -1185,7 +1197,14 @@ export default function POSPage() {
     const phone = cart.customer?.phone || ''
     if (phone) {
       try {
-        const msg = `🧾 فاتورة #${inv.order_number}\n${inv.items.map(i=>`• ${i.product_name} ×${i.quantity||i.qty} = ${fmt(i.total)} ${cur}`).join('\n')}\n━━━━━━━━━\nالمجموع: ${fmt(inv.total)} ${cur}\nشكراً لتسوقكم معنا 🙏`
+        const isRefundMsg = (inv.total || 0) < 0
+        const header = isRefundMsg ? `↩ إرجاع #${inv.order_number}` : `🧾 فاتورة #${inv.order_number}`
+        const lines  = inv.items.map(i => {
+          const mark = i.is_return ? '↩ ' : ''
+          return `• ${mark}${i.product_name} ×${i.quantity||i.qty} = ${fmt(i.total)} ${cur}`
+        }).join('\n')
+        const totalLabel = isRefundMsg ? 'مبلغ الإرجاع' : 'المجموع'
+        const msg = `${header}\n${lines}\n━━━━━━━━━\n${totalLabel}: ${fmt(Math.abs(inv.total))} ${cur}\nشكراً لتسوقكم معنا 🙏`
         const waUrl = buildWhatsApp(phone, msg)
         toast((t) => (
           <span>
@@ -1303,9 +1322,13 @@ export default function POSPage() {
     }
   }
 
+  // Reuse the same pending-print pattern as the after-checkout path so
+  // window.print() only fires after React has actually rendered the new
+  // invoice. The previous setTimeout(_, 300) could race the paint on slow
+  // tablets and print the previously-rendered invoice.
   const reprintInvoice = (inv) => {
     setLastInvoice({ ...inv, items: inv.pos_invoice_items || [] })
-    setTimeout(() => window.print(), 300)
+    setPendingPrint(true)
   }
 
   const { currentShift, openShift, closeShift, reconcileLocalShift, _hasHydrated } = useShiftStore()
@@ -2372,7 +2395,7 @@ export default function POSPage() {
       )})()}
 
       {/* ── PRINT AREA (hidden, shown on print) ── */}
-      <PrintView invoice={lastInvoice} settings={settings} />
+      <PrintView invoice={lastInvoice} settings={settings} cashierName={profile?.full_name} />
     </div>
   )
 }
